@@ -1,0 +1,2605 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>부산행 - 좀비 슈팅</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+:root{--red:#ff2020;--orange:#ff6a00;--yellow:#ffe500;--green:#00ff88;--bg:#0a0a0f;--panel:#12121a;--border:#2a2a3a;--text:#e0e0f0;--dim:#555577;}
+*{box-sizing:border-box;margin:0;padding:0;}
+button{touch-action:manipulation;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;user-select:none;}
+#bg-layer{position:fixed;inset:0;z-index:0;background:repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(255,32,32,0.025) 40px,rgba(255,32,32,0.025) 41px),repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,32,32,0.025) 40px,rgba(255,32,32,0.025) 41px);animation:bgScroll 10s linear infinite;}
+@keyframes bgScroll{to{background-position:0 40px,40px 0;}}
+#bg-vignette{position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 30%,rgba(0,0,0,0.88) 100%);}
+#app{position:relative;z-index:1;width:100%;max-width:520px;padding:12px;display:none;flex-direction:column;gap:10px;}
+#app.game-active{display:flex;}
+#title-bar{text-align:center;padding:8px 0 4px;}
+#title-bar h1{font-size:2rem;font-weight:900;letter-spacing:6px;color:var(--red);text-shadow:0 0 18px rgba(255,32,32,0.5),0 0 50px rgba(255,32,32,0.12);animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{text-shadow:0 0 18px rgba(255,32,32,0.5),0 0 50px rgba(255,32,32,0.12);}50%{text-shadow:0 0 28px rgba(255,32,32,0.75),0 0 65px rgba(255,100,0,0.2);}}
+#stage-label{font-size:0.75rem;color:var(--dim);letter-spacing:2px;margin-top:2px;}
+#status-bar{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+#hearts-area{display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:150px;}
+.heart{font-size:1.15rem;transition:transform 0.15s;}
+.heart.lost{filter:grayscale(1) opacity(0.3);}
+.heart.hit{animation:heartHit 0.3s;}
+@keyframes heartHit{0%,100%{transform:scale(1)}50%{transform:scale(1.5)}}
+#ammo-area{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+#ammo-label{font-size:0.65rem;color:var(--dim);letter-spacing:1px;}
+#ammo-dots{display:flex;gap:4px;}
+.ammo-dot{width:10px;height:10px;border-radius:50%;background:var(--yellow);box-shadow:0 0 5px rgba(255,229,0,0.6);transition:background 0.1s;}
+.ammo-dot.empty{background:#333;box-shadow:none;}
+#weapon-label{font-size:0.7rem;color:var(--orange);letter-spacing:1px;text-align:center;}
+#battlefield{position:relative;border:1px solid rgba(255,32,32,0.25);border-radius:14px;height:340px;overflow:hidden;box-shadow:0 0 40px rgba(255,32,32,0.07),0 8px 32px rgba(0,0,0,0.6);background:#000;}
+#bf-canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:13px;display:block;}
+#crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;z-index:5;pointer-events:none;}
+.ch-line{position:absolute;background:rgba(0,255,150,0.55);box-shadow:0 0 4px rgba(0,255,150,0.5);}
+.ch-h{top:50%;left:6px;right:6px;height:1.5px;transform:translateY(-50%);}
+.ch-v{left:50%;top:6px;bottom:6px;width:1.5px;transform:translateX(-50%);}
+.ch-dot{position:absolute;top:50%;left:50%;width:3px;height:3px;background:#00ff96;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 6px rgba(0,255,150,0.9);}
+#crosshair.shoot{animation:chKick 0.13s;}
+@keyframes chKick{35%{transform:translate(-50%,-50%) scale(1.35);}100%{transform:translate(-50%,-50%) scale(1);}}
+#muzzle-flash{position:absolute;bottom:8%;left:50%;transform:translate(-50%,0) scale(0);width:70px;height:70px;z-index:6;pointer-events:none;border-radius:50%;background:radial-gradient(circle,rgba(255,220,120,0.9) 0%,rgba(255,140,0,0.55) 35%,rgba(255,80,0,0) 70%);opacity:0;}
+#muzzle-flash.show{animation:muzzleFlash 0.11s ease-out;}
+@keyframes muzzleFlash{0%{opacity:1;transform:translate(-50%,0) scale(0.3);}100%{opacity:0;transform:translate(-50%,0) scale(1.4);}}
+#dir-arrows{position:absolute;inset:0;z-index:8;pointer-events:none;}
+.dir-arrow-stack{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;}
+.dir-arrow{width:0;height:0;border-left:9px solid transparent;border-right:9px solid transparent;border-bottom:15px solid rgba(255,225,0,0.92);filter:drop-shadow(0 0 5px rgba(255,200,0,0.75));margin-top:-7px;animation:arrowPop 0.22s ease-out;}
+.dir-arrow-stack[data-dir="9"] .dir-arrow{transform:rotate(-90deg);}
+.dir-arrow-stack[data-dir="3"] .dir-arrow{transform:rotate(90deg);}
+.dir-arrow-stack[data-dir="11"] .dir-arrow{transform:rotate(-35deg);}
+.dir-arrow-stack[data-dir="1"] .dir-arrow{transform:rotate(35deg);}
+.dir-arrow-stack[data-dir="12"] .dir-arrow{transform:rotate(0deg);}
+@keyframes arrowPop{0%{transform:scale(0.3);opacity:0;}60%{transform:scale(1.25);opacity:1;}100%{transform:scale(1);opacity:1;}}
+.dir-arrow.boss{border-bottom-color:rgba(255,60,20,0.95);border-left-width:13px;border-right-width:13px;border-bottom-width:22px;filter:drop-shadow(0 0 8px rgba(255,40,0,0.9));}
+#hit-vignette{position:absolute;inset:0;z-index:7;pointer-events:none;border-radius:13px;opacity:0;box-shadow:inset 0 0 70px 25px rgba(255,0,0,0.6);}
+
+#hit-vignette.show{opacity:1;transition:opacity 0s;}
+#hit-vignette.hide{opacity:0;transition:opacity 0.4s;}
+#stage-msg{position:absolute;inset:0;z-index:10;display:none;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,0.84);border-radius:13px;gap:8px;}
+#stage-msg.show{display:flex;}
+#stage-msg h2{font-size:1.3rem;font-weight:900;color:var(--red);text-align:center;text-shadow:0 0 20px rgba(255,32,32,0.7);}
+#stage-msg p{font-size:0.8rem;color:var(--dim);text-align:center;}
+#audio-hint{font-size:0.6rem;color:var(--dim);text-align:center;padding:1px 0;}
+#weapon-bar{display:flex;gap:6px;}
+.weapon-btn{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 4px;color:var(--dim);font-family:inherit;font-size:0.7rem;font-weight:700;cursor:pointer;text-align:center;transition:all 0.15s;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.weapon-btn .wicon{font-size:1.1rem;}
+.weapon-btn:active{transform:scale(0.95);}
+.weapon-btn.active{border-color:var(--orange);color:var(--orange);background:rgba(255,106,0,0.07);}
+.weapon-btn.disabled{opacity:0.3;pointer-events:none;}
+#dir-pad{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:6px;}
+.dir-btn{background:#1a1a26;border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:0.75rem;font-weight:700;padding:12px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;transition:all 0.1s;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+.dir-btn .dicon{font-size:1.3rem;}
+.dir-btn:active,.dir-btn.pressed{background:rgba(255,32,32,0.1);border-color:var(--red);transform:scale(0.93);}
+.empty-slot{visibility:hidden;}
+#reload-btn{background:rgba(255,229,0,0.06);border:1px solid var(--yellow);border-radius:8px;color:var(--yellow);font-family:inherit;font-size:0.8rem;font-weight:900;padding:12px;cursor:pointer;grid-column:2;grid-row:3;display:flex;flex-direction:column;align-items:center;gap:2px;transition:all 0.1s;-webkit-tap-highlight-color:transparent;letter-spacing:1px;}
+#reload-btn:active{transform:scale(0.93);}
+#progress-bar-wrap{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;}
+#progress-labels{display:flex;justify-content:space-between;font-size:0.6rem;color:var(--dim);margin-bottom:5px;}
+#progress-track{height:6px;background:#1a1a2a;border-radius:3px;overflow:hidden;}
+#progress-fill{height:100%;background:linear-gradient(90deg,var(--red),var(--orange));border-radius:3px;transition:width 1s linear;}
+#overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;}
+#overlay.show{display:flex;}
+#overlay h2{font-size:2.5rem;font-weight:900;}
+#overlay h2.dead{color:var(--red);}
+#overlay h2.clear{color:var(--green);}
+#overlay p{color:var(--dim);font-size:0.85rem;text-align:center;line-height:1.8;white-space:pre-line;}
+#overlay .big-emoji{font-size:4rem;}
+#restart-btn{background:var(--red);border:none;border-radius:10px;color:white;font-family:inherit;font-size:1rem;font-weight:900;padding:14px 40px;cursor:pointer;letter-spacing:2px;transition:transform 0.1s;}
+#restart-btn:active{transform:scale(0.95);}
+@keyframes shake{0%,100%{transform:translate(0,0)}20%{transform:translate(-5px,2px)}40%{transform:translate(5px,-3px)}60%{transform:translate(-4px,3px)}80%{transform:translate(4px,-1px)}}
+.shake{animation:shake 0.28s;}
+#title-screen{position:fixed;inset:0;z-index:200;background:rgba(0,0,0,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;overflow-y:auto;padding:32px 16px;box-sizing:border-box;}
+#title-screen h1{font-size:3.6rem;font-weight:900;letter-spacing:8px;color:var(--red);text-shadow:0 0 30px rgba(255,32,32,0.7),0 0 80px rgba(255,32,32,0.2);animation:pulse 2s ease-in-out infinite;}
+#title-screen .title-sub{font-size:0.9rem;color:var(--dim);letter-spacing:3px;}
+#title-screen .title-emoji{font-size:5rem;animation:trainPulse 1.5s ease-in-out infinite;}
+@keyframes trainPulse{0%,100%{transform:translateX(-6px);}50%{transform:translateX(6px);}}
+#start-btn{background:var(--red);border:none;border-radius:12px;color:white;font-family:inherit;font-size:1.1rem;font-weight:900;padding:16px 52px;cursor:pointer;letter-spacing:3px;transition:transform 0.1s,box-shadow 0.1s;box-shadow:0 0 24px rgba(255,32,32,0.4);}
+#start-btn:hover{transform:scale(1.05);box-shadow:0 0 36px rgba(255,32,32,0.65);}
+#start-btn:active{transform:scale(0.96);}
+#title-key-hint{font-size:0.65rem;color:var(--dim);letter-spacing:1px;}
+#help-toggle-btn{background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--dim);font-family:inherit;font-size:0.75rem;font-weight:700;padding:9px 20px;cursor:pointer;letter-spacing:1px;transition:all 0.15s;}
+#help-toggle-btn:hover{color:var(--text);border-color:var(--dim);}
+#help-toggle-btn.open{color:var(--text);border-color:var(--orange);}
+#help-panel{width:100%;max-width:480px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px 20px;box-sizing:border-box;max-height:52vh;overflow-y:auto;}
+#help-panel section{margin-bottom:16px;}
+#help-panel section:last-child{margin-bottom:0;}
+#help-panel h3{font-size:0.85rem;color:var(--orange);letter-spacing:1px;margin-bottom:6px;}
+#help-panel p{font-size:0.75rem;color:var(--text);line-height:1.6;}
+#help-panel ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;}
+#help-panel li{font-size:0.75rem;color:var(--text);line-height:1.5;}
+#help-panel b{color:var(--yellow);}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+<div id="bg-layer"></div>
+<div id="bg-vignette"></div>
+<div id="app">
+  <div id="title-bar"><h1>🚄 부산행</h1><div id="stage-label">1스테이지: 서울 → 광명역</div></div>
+  <div id="status-bar">
+    <div><div style="font-size:0.6rem;color:var(--dim);margin-bottom:4px;letter-spacing:1px;">내 하트</div><div id="hearts-area"></div></div>
+    <div id="weapon-label">🔫 피스톨</div>
+    <div id="ammo-area"><div id="ammo-label">탄약</div><div id="ammo-dots"></div></div>
+  </div>
+  <div id="battlefield">
+    <canvas id="bf-canvas"></canvas>
+    <div id="dir-arrows">
+      <div class="dir-arrow-stack" data-dir="9" style="top:50%;left:2%;"></div>
+      <div class="dir-arrow-stack" data-dir="11" style="top:6%;left:22%;"></div>
+      <div class="dir-arrow-stack" data-dir="12" style="top:3%;left:50%;"></div>
+      <div class="dir-arrow-stack" data-dir="1" style="top:6%;left:78%;"></div>
+      <div class="dir-arrow-stack" data-dir="3" style="top:50%;left:98%;"></div>
+    </div>
+    <div id="crosshair">
+      <div class="ch-line ch-h"></div>
+      <div class="ch-line ch-v"></div>
+      <div class="ch-dot"></div>
+    </div>
+    <div id="muzzle-flash"></div>
+    <div id="hit-vignette"></div>
+    <div id="stage-msg"><h2 id="stage-msg-title"></h2><p id="stage-msg-body"></p></div>
+  </div>
+  <div id="audio-hint">🎧 이어폰 착용 시 3D 방향 음향을 더 정확히 느낄 수 있습니다</div>
+  <div id="weapon-bar">
+    <button class="weapon-btn active" data-weapon="pistol" onclick="selectWeapon('pistol')"><span class="wicon">🔫</span>피스톨</button>
+    <button class="weapon-btn" data-weapon="shotgun" onclick="selectWeapon('shotgun')"><span class="wicon">💥</span>샷건</button>
+    <button class="weapon-btn" id="rocket-btn" data-weapon="rocket" onclick="selectWeapon('rocket')"><span class="wicon">🚀</span>로켓</button>
+    <button class="weapon-btn" data-weapon="knife" onclick="selectWeapon('knife')"><span class="wicon">🔪</span>사시미칼</button>
+  </div>
+  <div id="dir-pad">
+    <button class="dir-btn" id="btn-11" onpointerdown="shoot(11)"><span class="dicon">↖️</span>11시</button>
+    <button class="dir-btn" id="btn-12" onpointerdown="shoot(12)"><span class="dicon">⬆️</span>12시</button>
+    <button class="dir-btn" id="btn-1"  onpointerdown="shoot(1)"><span class="dicon">↗️</span>1시</button>
+    <button class="dir-btn" id="btn-9"  onpointerdown="shoot(9)"><span class="dicon">⬅️</span>9시</button>
+    <div class="empty-slot"></div>
+    <button class="dir-btn" id="btn-3"  onpointerdown="shoot(3)"><span class="dicon">➡️</span>3시</button>
+    <div class="empty-slot"></div>
+    <button id="reload-btn" onpointerdown="reload()">🔄 장전</button>
+    <div class="empty-slot"></div>
+  </div>
+  <div id="progress-bar-wrap">
+    <div id="progress-labels"><span id="prog-from">서울</span><span id="prog-pct">0%</span><span id="prog-to">광명역</span></div>
+    <div id="progress-track"><div id="progress-fill" style="width:0%"></div></div>
+  </div>
+</div>
+<div id="title-screen">
+  <div class="title-emoji">🚄</div>
+  <h1>부산행</h1>
+  <div class="title-sub">좀비 슈팅 생존 게임</div>
+  <button id="start-btn" onclick="beginGame()">▶ 게임 시작</button>
+  <div id="title-key-hint">키보드: Alt + Enter</div>
+  <button id="help-toggle-btn" onclick="toggleHelp()" aria-expanded="false" aria-controls="help-panel">📖 도움말 보기 ▾</button>
+  <div id="help-panel" hidden>
+    <section>
+      <h3>🎯 목표</h3>
+      <p>서울에서 부산까지, 총 9개 역을 거치며 좀비들을 물리치고 살아서 도착하세요. 각 역 구간마다 진행바가 100%가 되면 다음 역으로 이동합니다. 진행바가 다 찰 즈음 보스 좀비가 등장하니 주의하세요.</p>
+    </section>
+    <section>
+      <h3>🕹️ 조작 방법</h3>
+      <ul>
+        <li><b>방향 버튼(11/12/1/9/3시)</b> — 좀비가 오는 방향으로 사격/공격합니다. 방향이 안 맞으면 맞지 않습니다.</li>
+        <li><b>🔄 장전 버튼</b> — 탄약이 떨어지면 눌러서 재장전합니다. 사시미칼은 장전이 필요 없습니다.</li>
+        <li><b>무기 선택 바</b> — 화면 아래에서 피스톨/샷건/로켓/사시미칼 중 원하는 무기로 바꿀 수 있습니다.</li>
+        <li><b>Alt + Enter</b> — 타이틀 화면에서는 게임 시작, "다음 역 출발" 화면에서는 다음 역으로 이동, 게임오버 화면에서는 다시 시작합니다.</li>
+      </ul>
+    </section>
+    <section>
+      <h3>⌨️ 키보드 조작</h3>
+      <ul>
+        <li><b>방향 사격 (자판의 A·S·D·Z·C)</b> — S는 정면(12시), S 왼쪽 위 대각선의 A는 11시, S 오른쪽 위 대각선의 D는 1시, 맨 왼쪽 아래의 Z는 9시(왼쪽), 오른쪽 아래의 C는 3시(오른쪽)를 사격합니다.</li>
+        <li><b>X</b> — 장전</li>
+        <li><b>Q / W / E / R</b> — 무기 전환 (피스톨 / 샷건 / 로켓 / 사시미칼)</li>
+        <li><b>V</b> — 남은 하트 수를 음성으로 확인</li>
+        <li><b>F</b> — 남은 탄약 수를 음성으로 확인 (평소엔 알려주지 않고, 누를 때만 안내). 사시미칼은 탄약이 무제한이라 이 키가 동작하지 않습니다.</li>
+        <li><b>스페이스</b> — 현재 들고 있는 무기를 음성으로 확인 (평소엔 알려주지 않고, 누를 때만 안내)</li>
+      </ul>
+    </section>
+    <section>
+      <h3>🔊 소리로 방향 파악하기</h3>
+      <p>좀비가 다가올수록 발소리와 신음이 점점 빨라지고 커집니다. 좀비가 등장하면 몇 시 방향인지 음성으로 바로 안내되고, 이후에도 방향 경고음(삐- 소리)이 계속 울리니 소리가 나는 방향으로 재빨리 대응하세요. 이어폰을 쓰면 어느 방향에서 오는지 훨씬 정확하게 들립니다. 화면에는 좀비가 있는 방향마다 노란 화살표가 표시되고, 같은 방향에 화살표가 여러 개 겹쳐 있으면 그 방향에 좀비가 그만큼 여러 마리 있다는 뜻입니다.</p>
+    </section>
+    <section>
+      <h3>🔫 무기 특성</h3>
+      <ul>
+        <li><b>🔫 피스톨</b> — 탄약 6발, 데미지 1, 연사 속도 빠름. 기본 무기.</li>
+        <li><b>💥 샷건</b> — 탄약 3발, 데미지 5, 재장전이 느린 대신 화력이 강력함.</li>
+        <li><b>🚀 로켓</b> — 단 1발, 데미지 10, 방향에 상관없이 화면의 모든 좀비를 동시에 타격합니다. 스테이지당 1회만 사용 가능하니 위급할 때 아껴두세요.</li>
+        <li><b>🔪 사시미칼</b> — 탄약 무제한, 재장전 불필요, 근접 무기라 좀비가 충분히 가까이 왔을 때만 맞습니다.</li>
+      </ul>
+    </section>
+    <section>
+      <h3>❤️ 하트와 위협</h3>
+      <ul>
+        <li>일반 좀비에게 붙잡히면 하트가 1개 줄어듭니다. 하트가 0이 되면 게임오버입니다.</li>
+        <li><b>보스 좀비</b>에게 붙잡히면 하트와 상관없이 즉시 게임오버되니, 보스가 나타나면 반드시 먼저 처치하세요.</li>
+        <li>기본 최대 하트는 5개입니다. 새 역을 출발할 때마다 그 시점의 최대치로 하트가 가득 채워집니다.</li>
+        <li><b>하트 최대치 보너스 (총 2단계, 5→7→10):</b> 1~3역을 하트가 <b>한 번도 안 깎인 채로</b> 통과하면 4역부터 최대 하트가 <b>7개</b>로 늘어납니다. 4~6역은 난이도가 높은 만큼 구간 전체에서 <b>딱 1번</b> 하트가 깎여도 봐주며, 이 조건까지 통과하면 7역부터 최대 하트가 <b>10개</b>로 늘어납니다.</li>
+        <li>단, 1~3역에서 하트가 깎여 첫 보너스를 놓쳤더라도 4~6역 조건(1회 봐줌)을 통과하면 7역 시점에 보너스를 받습니다. 이때는 아직 첫 번째 보너스이므로 10개가 아니라 <b>7개</b>로 채워집니다. (보너스는 몇 번째로 받는지에 따라 항상 7개 → 10개 순서로 적용됩니다.)</li>
+      </ul>
+    </section>
+  </div>
+</div>
+<div id="overlay">
+  <div class="big-emoji" id="overlay-emoji">💀</div>
+  <h2 id="overlay-title" class="dead">게임 오버</h2>
+  <p id="overlay-body"></p>
+  <button id="restart-btn" onclick="restartGame()">다시 시작</button>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  🎨 Canvas 풀HD 렌더링 엔진
+//  열차 실내 3D 투시도 + 파티클 + 레일 흐름 + 빛 반사
+// ══════════════════════════════════════════════════════
+const canvas = document.getElementById('bf-canvas');
+const crosshairEl = document.getElementById('crosshair');
+const muzzleFlashEl = document.getElementById('muzzle-flash');
+
+// 시계 방향(11/12/1/9/3시) → 라디안 각도. 12시가 정면(0), 시계방향이 +.
+// (기존 오디오 mkPanner의 angMap과 일치시켜 시청각 방향이 어긋나지 않게 함)
+const DIR_ANGLE = { 11: -Math.PI * 0.28, 12: 0, 1: Math.PI * 0.28, 9: -Math.PI * 0.62, 3: Math.PI * 0.62 };
+const DIR_ELEV  = { 11: 0.55, 12: 0.62, 1: 0.55, 9: 0.15, 3: 0.15 };
+
+// ══════════════════════════════════════════════════════
+//  🎮 Three.js 3D 씬 구성 - 열차 내부 1인칭 시점
+// ══════════════════════════════════════════════════════
+let renderer, scene, camera, clock;
+let trainGroup, zombieGroup, particleGroup;
+let ceilLights = [];
+let muzzleLight = null;
+
+function initThree() {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'default' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  renderer.shadowMap.enabled = false;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ReinhardToneMapping;
+  renderer.toneMappingExposure = 1.3;
+
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x05050a, 0.045);
+
+  camera = new THREE.PerspectiveCamera(62, 1, 0.1, 100);
+  camera.position.set(0, 1.55, 4.6);
+  camera.lookAt(0, 1.4, -10);
+
+  clock = new THREE.Clock();
+
+  buildTrainInterior();
+  buildLighting();
+
+  zombieGroup = new THREE.Group(); scene.add(zombieGroup);
+  particleGroup = new THREE.Group(); scene.add(particleGroup);
+
+  resizeThree();
+  window.addEventListener('resize', resizeThree);
+  renderLoop();
+}
+
+function resizeThree() {
+  const bf = document.getElementById('battlefield');
+  const w = bf.offsetWidth, h = bf.offsetHeight;
+  if (!w || !h) return;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h, false);
+}
+
+// ── 열차 내부 지오메트리 ──
+function buildTrainInterior() {
+  trainGroup = new THREE.Group();
+  scene.add(trainGroup);
+
+  const metalMat = new THREE.MeshLambertMaterial({ color: 0x14141f });
+  const wallMat  = new THREE.MeshLambertMaterial({ color: 0x0d0d1a });
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0x0a0a12 });
+  const ceilMat  = new THREE.MeshLambertMaterial({ color: 0x111120 });
+
+  const TUNNEL_LEN = 60, W = 5.2, H = 3.0;
+
+  // 바닥 (레일 반사가 보이도록 살짝 광택)
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, TUNNEL_LEN), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, 0, -TUNNEL_LEN / 2 + 5);
+  floor.receiveShadow = true;
+  trainGroup.add(floor);
+
+  // 레일 두 줄
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x8892c8, roughness: 0.25, metalness: 0.9, emissive: 0x151530, emissiveIntensity: 0.3 });
+  [-0.9, 0.9].forEach(x => {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, TUNNEL_LEN), railMat);
+    rail.position.set(x, 0.015, -TUNNEL_LEN / 2 + 5);
+    trainGroup.add(rail);
+  });
+  // 침목
+  const sleeperMat = new THREE.MeshLambertMaterial({ color: 0x2a2418 });
+  const sleeperGeo = new THREE.BoxGeometry(2.2, 0.04, 0.16);
+  const sleeperMesh = new THREE.InstancedMesh(sleeperGeo, sleeperMat, 40);
+  const _m4 = new THREE.Matrix4();
+  for (let i = 0; i < 40; i++) {
+    _m4.makeTranslation(0, 0.005, 6 - i * 1.6);
+    sleeperMesh.setMatrixAt(i, _m4);
+  }
+  trainGroup.add(sleeperMesh);
+
+  // 천장
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, TUNNEL_LEN), ceilMat);
+  ceil.rotation.x = Math.PI / 2;
+  ceil.position.set(0, H, -TUNNEL_LEN / 2 + 5);
+  trainGroup.add(ceil);
+
+  // 좌우 벽 (창문 뚫린 형태를 흉내: 큰 벽 + 창틀 프레임)
+  [-1, 1].forEach(side => {
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(TUNNEL_LEN, H), wallMat);
+    wall.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    wall.position.set(side * W / 2, H / 2, -TUNNEL_LEN / 2 + 5);
+    trainGroup.add(wall);
+
+    // 기둥
+    for (let i = 0; i < 8; i++) {
+      const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.08, H, 0.12), metalMat);
+      pillar.position.set(side * (W / 2 - 0.02), H / 2, 5 - i * 7.5);
+      trainGroup.add(pillar);
+    }
+
+    // 창문 (발광 재질로 도시 불빛 흉내)
+    for (let i = 0; i < 8; i++) {
+      const winMat = new THREE.MeshStandardMaterial({
+        color: 0x0a0a1a, emissive: new THREE.Color(0x2a3a6a), emissiveIntensity: 0.4, roughness: 0.3,
+      });
+      const win = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), winMat);
+      win.rotation.y = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+      win.position.set(side * (W / 2 - 0.03), 1.75, 2.5 - i * 7.5);
+      win.userData.winLight = true;
+      win.userData.phase = Math.random() * Math.PI * 2;
+      trainGroup.add(win);
+      ceilLights.push(win);
+    }
+  });
+
+  // 손잡이 봉 (디테일)
+  const barMat = new THREE.MeshLambertMaterial({ color: 0x888899 });
+  for (let i = 0; i < 10; i++) {
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.7, 8), barMat);
+    bar.position.set(0, 2.55, 5 - i * 5.5);
+    trainGroup.add(bar);
+  }
+}
+
+// ── 조명 ──
+function buildLighting() {
+  const ambient = new THREE.AmbientLight(0x30304a, 0.7);
+  scene.add(ambient);
+
+  const hemi = new THREE.HemisphereLight(0x4060a0, 0x0a0a10, 0.5);
+  scene.add(hemi);
+
+  // 천장 형광등 (개수를 최소화 - PointLight는 PBR 머티리얼에서 개당 연산 비용이 크고,
+  // 좀비처럼 파츠가 많은 메시가 여러 마리 있으면 라이트 개수만큼 배로 누적됨)
+  for (let i = 0; i < 3; i++) {
+    const pl = new THREE.PointLight(0xaad0ff, 1.6, 12, 2);
+    pl.position.set(0, 2.85, 6 - i * 11);
+    scene.add(pl);
+  }
+
+  // 플레이어 총구 라이트 (발사 시 반짝)
+  muzzleLight = new THREE.PointLight(0xffaa33, 0, 6, 2);
+  muzzleLight.position.set(0, 1.3, 3.6);
+  scene.add(muzzleLight);
+
+  // 붉은 비상경보 은은한 컬러 라이트 (분위기) - ambient/hemi로 대체 가능해 제거
+}
+
+// ══════════════════════════════════════════════════════
+//  🧟 좀비 / 보스 3D 모델 (저폴리 조합형)
+// ══════════════════════════════════════════════════════
+
+// GPU 메모리 누수 방지: 메시 제거 시 material을 dispose (geometry는 캐시되어 공유되므로 dispose하지 않음)
+function disposeMesh(obj) {
+  if (!obj) return;
+  obj.traverse(o => {
+    if (o.isMesh && o.material) {
+      if (Array.isArray(o.material)) o.material.forEach(m => m.dispose());
+      else o.material.dispose();
+    }
+  });
+}
+
+// 지오메트리 캐시: 같은 모양은 재사용해서 스폰마다 새로 만들지 않음 (성능 최적화)
+const geoCache = {};
+function getCapsuleGeo(radius, length) {
+  const key = `cap_${radius}_${length}`;
+  if (!geoCache[key]) {
+    geoCache[key] = {
+      cyl: new THREE.CylinderGeometry(radius, radius, length, 6),
+      cap: new THREE.SphereGeometry(radius, 6, 5),
+    };
+  }
+  return geoCache[key];
+}
+function getSphereGeo(radius) {
+  const key = `sph_${radius}`;
+  if (!geoCache[key]) geoCache[key] = new THREE.SphereGeometry(radius, 8, 7);
+  return geoCache[key];
+}
+function getConeGeo(radius, height) {
+  const key = `cone_${radius}_${height}`;
+  if (!geoCache[key]) geoCache[key] = new THREE.ConeGeometry(radius, height, 5);
+  return geoCache[key];
+}
+function getCylinderGeo(radius, length) {
+  const key = `cyl_${radius}_${length}`;
+  if (!geoCache[key]) geoCache[key] = new THREE.CylinderGeometry(radius, radius, length, 6);
+  return geoCache[key];
+}
+
+// 캡슐(원통+반구) - 캐시된 지오메트리 재사용, material은 개체별로 유지(히트플래시 등 개별 제어 위해)
+function makeCapsule(radius, length, mat) {
+  const g = new THREE.Group();
+  const geo = getCapsuleGeo(radius, length);
+  const cyl = new THREE.Mesh(geo.cyl, mat);
+  g.add(cyl);
+  const capTop = new THREE.Mesh(geo.cap, mat);
+  capTop.position.y = length / 2;
+  g.add(capTop);
+  const capBot = new THREE.Mesh(geo.cap, mat);
+  capBot.position.y = -length / 2;
+  g.add(capBot);
+  return g;
+}
+
+function buildZombieMesh(isBoss, heavy, colorSeed, elite) {
+  const g = new THREE.Group();
+  const scale = isBoss ? 1.9 : (elite ? 1.4 : (heavy ? 1.25 : 1));
+
+  const skinColors = [0x4a7a4a, 0x5a6a3a, 0x6a5a5a, 0x3a5a6a];
+  const eliteColors = [0x8a2a8a, 0x2a2a8a, 0x8a5a1a];
+  const bossColors = [0x8a1a1a, 0x5a1a6a, 0x1a1a1a, 0x6a1a1a, 0x2a0a3a];
+  const baseColor = isBoss ? bossColors[colorSeed % bossColors.length] : (elite ? eliteColors[colorSeed % eliteColors.length] : skinColors[colorSeed % skinColors.length]);
+
+  const skinMat = new THREE.MeshLambertMaterial({ color: baseColor });
+  const darkMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: elite ? 0xffcc00 : 0xff3300 });
+
+  // 몸통
+  const torso = makeCapsule(0.28, 0.55, skinMat);
+  torso.position.y = 1.05;
+  g.add(torso);
+
+  // 머리 (그림자는 머리만 - 부하 최소화)
+  const head = new THREE.Mesh(getSphereGeo(0.22), skinMat);
+  head.position.y = 1.65;
+  g.add(head);
+
+  // 눈 (발광 - 어둠 속에서도 방향 인지 쉽게)
+  [-0.09, 0.09].forEach(ex => {
+    const eye = new THREE.Mesh(getSphereGeo(0.035), eyeMat);
+    eye.position.set(ex, 1.67, 0.19);
+    g.add(eye);
+  });
+
+  // 팔 (앞으로 뻗은 좀비 포즈) - 단순 원통으로 경량화
+  [-1, 1].forEach(side => {
+    const arm = new THREE.Mesh(getCylinderGeo(0.07, 0.5), skinMat);
+    arm.position.set(side * 0.32, 1.15, 0.22);
+    arm.rotation.x = -Math.PI / 2.3;
+    arm.rotation.z = side * 0.15;
+    g.add(arm);
+  });
+
+  // 다리 - 단순 원통으로 경량화
+  [-1, 1].forEach(side => {
+    const leg = new THREE.Mesh(getCylinderGeo(0.09, 0.55), darkMat);
+    leg.position.set(side * 0.13, 0.35, 0);
+    g.add(leg);
+  });
+
+  // 보스 전용: 뿔/왕관 형태 + 오라
+  if (isBoss) {
+    const hornMat = new THREE.MeshLambertMaterial({ color: 0x2a2a2a });
+    [-1, 1].forEach(side => {
+      const horn = new THREE.Mesh(getConeGeo(0.05, 0.28), hornMat);
+      horn.position.set(side * 0.13, 1.9, 0);
+      horn.rotation.z = side * 0.3;
+      g.add(horn);
+    });
+    const auraLight = new THREE.PointLight(baseColor, 1.8, 3.5, 2);
+    auraLight.position.set(0, 1.4, 0);
+    g.add(auraLight);
+    g.userData.auraLight = auraLight;
+  }
+
+  g.scale.setScalar(scale);
+  g.userData.eyeMat = eyeMat;
+  g.userData.mats = [skinMat, darkMat];
+  return g;
+}
+
+// dir(11/12/1/9/3시) + 진행률(0~1)을 3D 공간 좌표로 변환
+function dirToPosition(dir, pct, isBoss) {
+  const ang = DIR_ANGLE[dir] || 0;
+  const startDist = 26, endDist = isBoss ? 1.35 : 1.15;
+  const dist = startDist + (endDist - startDist) * pct;
+  const spreadAtStart = 5.0;
+  const lateral = Math.sin(ang) * spreadAtStart * (0.35 + 0.65 * (1 - pct)) + Math.sin(ang) * endDist * pct;
+  const x = Math.sin(ang) * dist * 0.55;
+  const z = 3.6 - Math.cos(ang) * dist * 0.9;
+  const yBase = (dir === 12 || dir === 11 || dir === 1) ? 0 : 0;
+  return { x, y: yBase, z };
+}
+
+function createZombieVisual(z, isBoss) {
+  const mesh = buildZombieMesh(isBoss, z.heavy, z.id === 'boss' ? 0 : (typeof z.id === 'number' ? z.id : 0), z.elite);
+  const p = dirToPosition(z.dir, 0, isBoss);
+  mesh.position.set(p.x, p.y, p.z);
+  mesh.lookAt(0, mesh.position.y, 6);
+  zombieGroup.add(mesh);
+  return mesh;
+}
+
+function updateZombieVisual(z, pct) {
+  if (!z.mesh) return;
+  const isBoss = z.id === 'boss';
+  const p = dirToPosition(z.dir, pct, isBoss);
+  z.mesh.position.set(p.x, p.y, p.z);
+  z.mesh.lookAt(0, z.mesh.position.y, 6);
+  // 다가올수록 미세하게 흔들리는 좀비 걸음걸이
+  const wobble = Math.sin(Date.now() * 0.006 + (typeof z.id === 'number' ? z.id : 0)) * 0.05;
+  z.mesh.rotation.z = wobble;
+  if (z.mesh.userData.auraLight) z.mesh.userData.auraLight.intensity = 1.6 + Math.sin(Date.now() * 0.004) * 0.4;
+}
+
+function flashHitMesh(mesh) {
+  if (!mesh) return;
+  mesh.userData.mats.forEach(m => { m.emissive = new THREE.Color(0xffffff); m.emissiveIntensity = 1.4; });
+  setTimeout(() => { mesh.userData.mats.forEach(m => { m.emissiveIntensity = 0; }); }, 90);
+}
+
+function killZombieVisual(mesh) {
+  if (!mesh) return;
+  spawnBloodBurst(mesh.position.clone());
+  const startScale = mesh.scale.x;
+  const t0 = performance.now();
+  function anim() {
+    const t = Math.min((performance.now() - t0) / 380, 1);
+    mesh.scale.setScalar(startScale * (1 - t * 0.7));
+    mesh.rotation.z = t * 2.4;
+    mesh.position.y -= 0.012;
+    mesh.traverse(o => { if (o.material) { o.material.transparent = true; o.material.opacity = 1 - t; } });
+    if (t < 1) requestAnimationFrame(anim);
+    else { zombieGroup.remove(mesh); disposeMesh(mesh); }
+  }
+  anim();
+}
+
+function removeZombieVisual(mesh) {
+  if (mesh) { zombieGroup.remove(mesh); disposeMesh(mesh); }
+}
+
+// ══════════════════════════════════════════════════════
+//  ✨ 파티클 시스템 (총구 섬광 / 피 / 탄피 / 연기)
+// ══════════════════════════════════════════════════════
+const activeParticles = [];
+
+function spawnMuzzleBurst(dir) {
+  const ang = DIR_ANGLE[dir] || 0;
+  const originY = 1.3;
+  const mat = new THREE.PointsMaterial({ color: 0xffaa33, size: 0.06, transparent: true, opacity: 1, blending: THREE.AdditiveBlending });
+  const geo = new THREE.BufferGeometry();
+  const n = 14;
+  const positions = new Float32Array(n * 3);
+  const vels = [];
+  for (let i = 0; i < n; i++) {
+    positions[i*3] = 0; positions[i*3+1] = originY; positions[i*3+2] = 3.5;
+    const spread = (Math.random() - 0.5) * 0.6;
+    vels.push({
+      x: Math.sin(ang) * (3 + Math.random() * 2) + spread,
+      y: (Math.random() - 0.3) * 1.5,
+      z: -Math.cos(ang) * (3 + Math.random() * 2) - 2,
+    });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const pts = new THREE.Points(geo, mat);
+  particleGroup.add(pts);
+  activeParticles.push({ pts, mat, vels, life: 1, decay: 4.2, type: 'muzzle' });
+
+  // 총구 라이트 플래시
+  if (muzzleLight) {
+    muzzleLight.intensity = 4.5;
+    setTimeout(() => { if (muzzleLight) muzzleLight.intensity = 0; }, 60);
+  }
+  muzzleFlashEl.classList.remove('show'); void muzzleFlashEl.offsetWidth; muzzleFlashEl.classList.add('show');
+}
+
+function spawnBloodBurst(position) {
+  const mat = new THREE.PointsMaterial({ color: 0xcc0000, size: 0.09, transparent: true, opacity: 1 });
+  const geo = new THREE.BufferGeometry();
+  const n = 20;
+  const positions = new Float32Array(n * 3);
+  const vels = [];
+  for (let i = 0; i < n; i++) {
+    positions[i*3] = position.x; positions[i*3+1] = position.y; positions[i*3+2] = position.z;
+    const a = Math.random() * Math.PI * 2, sp = Math.random() * 2.5;
+    vels.push({ x: Math.cos(a) * sp, y: Math.random() * 3, z: Math.sin(a) * sp });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const pts = new THREE.Points(geo, mat);
+  particleGroup.add(pts);
+  activeParticles.push({ pts, mat, vels, life: 1, decay: 1.6, type: 'blood', gravity: true });
+}
+
+function spawnSmokePuff() {
+  const mat = new THREE.PointsMaterial({ color: 0xaaaacc, size: 0.22, transparent: true, opacity: 0.35 });
+  const geo = new THREE.BufferGeometry();
+  const n = 6;
+  const positions = new Float32Array(n * 3);
+  const vels = [];
+  for (let i = 0; i < n; i++) {
+    positions[i*3] = (Math.random()-0.5)*0.3; positions[i*3+1] = 1.25; positions[i*3+2] = 3.4;
+    vels.push({ x: (Math.random()-0.5)*0.3, y: 0.5 + Math.random()*0.4, z: -0.2 });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const pts = new THREE.Points(geo, mat);
+  particleGroup.add(pts);
+  activeParticles.push({ pts, mat, vels, life: 1, decay: 0.7, type: 'smoke' });
+}
+
+function clearAllParticles() {
+  for (let i = activeParticles.length - 1; i >= 0; i--) {
+    const p = activeParticles[i];
+    particleGroup.remove(p.pts);
+    p.pts.geometry.dispose();
+    p.mat.dispose();
+  }
+  activeParticles.length = 0;
+}
+
+function updateParticles(dt) {
+  for (let i = activeParticles.length - 1; i >= 0; i--) {
+    const p = activeParticles[i];
+    p.life -= p.decay * dt;
+    if (p.life <= 0) { particleGroup.remove(p.pts); p.pts.geometry.dispose(); p.mat.dispose(); activeParticles.splice(i, 1); continue; }
+    const posAttr = p.pts.geometry.attributes.position;
+    for (let j = 0; j < p.vels.length; j++) {
+      posAttr.array[j*3]   += p.vels[j].x * dt;
+      posAttr.array[j*3+1] += p.vels[j].y * dt;
+      posAttr.array[j*3+2] += p.vels[j].z * dt;
+      if (p.gravity) p.vels[j].y -= 6 * dt;
+    }
+    posAttr.needsUpdate = true;
+    p.mat.opacity = Math.max(0, p.life);
+  }
+}
+
+// 기존 함수명 유지 (호환성) - shoot()/killZ()에서 호출
+function spawnParticle(x, y, type) { /* 3D 파티클로 대체됨 - spawnMuzzleBurst/spawnBloodBurst 사용 */ }
+function spawnBrass(W, H) { spawnSmokePuff(); }
+function spawnSmoke(W, H) { /* spawnMuzzleBurst 내부에서 처리 */ }
+function spawnBlood(mesh) { /* killZombieVisual 내부에서 처리 */ }
+
+// 피격 비네트
+const hitVig = document.getElementById('hit-vignette');
+function showHitVignette() {
+  hitVig.classList.remove('hide');
+  hitVig.classList.add('show');
+  setTimeout(() => { hitVig.classList.remove('show'); hitVig.classList.add('hide'); }, 80);
+}
+
+// ── 메인 렌더 루프 ──
+let _frameCount = 0;
+function renderLoop() {
+  requestAnimationFrame(renderLoop);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  _frameCount++;
+
+  // 창문 불빛 깜빡임 (도시 불빛 흐르는 느낌) - 3프레임마다 갱신해 부하 절감
+  const t = performance.now() * 0.001;
+  if (_frameCount % 3 === 0) {
+    ceilLights.forEach((w) => {
+      const flicker = 0.3 + 0.35 * Math.abs(Math.sin(t * 1.3 + w.userData.phase));
+      w.material.emissiveIntensity = flicker;
+    });
+  }
+
+  // 카메라 미세 흔들림 (열차 진동감)
+  camera.position.y = 1.55 + Math.sin(t * 8) * 0.006;
+  camera.position.x = Math.sin(t * 1.7) * 0.01;
+
+  updateParticles(dt);
+
+  renderer.render(scene, camera);
+}
+
+initThree();
+let AC = null, mGain = null, revConv = null, compressor = null;
+
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    // 마스터 체인: gain → compressor → destination
+    compressor = AC.createDynamicsCompressor();
+    compressor.threshold.value = -14;
+    compressor.knee.value = 6;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.18;
+    compressor.connect(AC.destination);
+
+    mGain = AC.createGain();
+    mGain.gain.value = 0.82;
+    mGain.connect(compressor);
+
+    // 홀/공간 리버브 (열차 실내 음향 특성)
+    // → 사용자 요청으로 "울리는" 리버브 효과를 껐다. revConv 자체의 출력을 0으로
+    //   낮춰서, 이 노드로 들어오는 모든 wet 신호가 무음이 되게 한다.
+    revConv = AC.createConvolver();
+    revConv.buffer = buildReverb(0.9, 1.2);
+    const revOut = AC.createGain();
+    revOut.gain.value = 0; // 리버브 완전 무음화
+    revConv.connect(revOut);
+    revOut.connect(mGain);
+
+    startTrainAmbience();
+  } catch(e) { console.warn('Audio init:', e); }
+}
+
+// ─── 리버브: 지수 감쇠 노이즈 IR + 초기 반사 시뮬레이션
+function buildReverb(wetMix, decayTime) {
+  const sr = AC.sampleRate;
+  const len = sr * decayTime;
+  const buf = AC.createBuffer(2, len, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = buf.getChannelData(ch);
+    // 초기 반사: 짧은 딜레이들
+    const reflections = [0.012, 0.023, 0.037, 0.051, 0.068, 0.089];
+    for (let i = 0; i < len; i++) {
+      const t = i / sr;
+      let val = (Math.random() * 2 - 1) * Math.exp(-t * 3.5);
+      // 초기 반사 강조
+      reflections.forEach(rt => {
+        const ri = Math.floor(rt * sr);
+        if (Math.abs(i - ri) < 3) val += (ch === 0 ? 0.4 : 0.35);
+      });
+      d[i] = val;
+    }
+  }
+  return buf;
+}
+
+// ─── 왜곡 커브 (소프트 클리핑)
+const _distCurveCache = {};
+function distCurve(amount) {
+  if (_distCurveCache[amount]) return _distCurveCache[amount];
+  const n = 512, c = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    c[i] = ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x));
+  }
+  _distCurveCache[amount] = c;
+  return c;
+}
+
+// ─── 경량 패너 - 빈번한 소리(발소리/신음)용, HRTF보다 훨씬 저렴하지만 방향감은 최대한 살림
+// 실제 청각 단서를 값싼 노드로 근사:
+//  1) ILD(좌우 음량차) - 좌우 채널 게인을 직접 제어. head shadow를 반영해
+//     반대쪽 귀를 감쇠시켜 좌우 판별력을 살림.
+//  2) ITD(좌우 시간차, 최대 0.66ms - 실제 인간 양이간 시간차 최대치) - 반대쪽 채널에
+//     DelayNode로 지연을 줘서 좌우 판별력 강화
+//  3) 거리 로우패스 - 공기 중 고음 감쇠 시뮬레이션 (원근감)
+//  4) 전후방 스펙트럴 튜닝 - 뒤(9/3시)는 고음을 살짝 죽여 앞/뒤 구분 (사람 귓바퀴 필터링 근사)
+//
+// [주의] 이전에 11/12/1시(위쪽 방향)에 고주파 부스트 피킹 필터로 "고도감"을 추가로
+// 흉내내려 했으나, 오히려 음색이 왜곡되어 "다른 방향에서 들리는" 위화감과 소리가
+// 멀게 들리는 부작용이 있었다. 게임에 실제 필요한 건 좌/우/앞/뒤 5방향 구분뿐이라
+// 고도 큐는 제거하고, 검증된 좌우/전후 큐만 남겼다.
+//
+// [성능] 기존에는 호출마다 8개 노드(필터2/게인3/딜레이2/머저1)를 새로 만들고 버렸다.
+// 좀비마다 독립적인 rAF 루프가 돌면서 발소리/신음이 프레임마다 여러 번 트리거되므로,
+// 좀비 수가 늘어날수록(스테이지 진행 시) 매 프레임 이 무거운 그래프 생성이 다발적으로
+// 일어나 오디오 렌더 스레드가 밀려 지직거림/끊김이 발생했다 (버벅거림의 근본 원인).
+// → 방향(dir)에만 의존하는 정적 노드(좌우 게인/딜레이/머저/전후방 필터)는 방향별로
+//   딱 한 번만 만들어 재사용하고, 거리(dist01)에 의존하는 부분만 소형 풀에서 순환
+//   재사용한다. 결과적으로 노드 생성량이 좀비 수와 무관하게 상수가 된다.
+const _litePannerStatic = {}; // dir -> { frontBackF, presenceF, leftG, rightG, leftDelay, rightDelay, merger }
+function _getLitePannerStatic(dir) {
+  if (_litePannerStatic[dir]) return _litePannerStatic[dir];
+  const angMap = { 11: 225, 12: 270, 1: 315, 9: 180, 3: 0 };
+  const ang = (angMap[dir] || 0) * Math.PI / 180;
+  const side = dirToSimplePan(dir); // -1(완전 왼쪽) ~ +1(완전 오른쪽). 단순 팬과 같은 값을 써서 모든 소리의 방향을 일치시킴
+  const isBehind = (dir === 9 || dir === 3);
+  // 11/12/1시(전방 위쪽): HRTF에서는 elevation으로 실제 앞쪽 가까이 배치돼 또렷하게
+  // 들렸는데, 경량 패너는 좌우/전후 큐만 있어 상대적으로 소리가 멀고 얇게 들리던
+  // 지점. 저역을 보강해 "가까이서 들리는" 무게감(근접 효과, proximity effect)을 준다.
+  const isFrontUp = (dir === 11 || dir === 12 || dir === 1);
+
+  const frontBackF = AC.createBiquadFilter();
+  frontBackF.type = 'highshelf';
+  frontBackF.frequency.value = 3000;
+  frontBackF.gain.value = isBehind ? -3 : 1.5;
+
+  // 근접감 보강 필터: 저역을 살짝 부스트해 소리에 무게감을 주고 직접음 게인도 올림
+  const presenceF = AC.createBiquadFilter();
+  presenceF.type = 'lowshelf';
+  presenceF.frequency.value = 350;
+  presenceF.gain.value = isFrontUp ? 4 : 0;
+
+  const leftG = AC.createGain();
+  const rightG = AC.createGain();
+  leftG.gain.value = Math.max(0.12, 1 - Math.max(0, side) * 0.85) * (isFrontUp ? 1.15 : 1);
+  rightG.gain.value = Math.max(0.12, 1 - Math.max(0, -side) * 0.85) * (isFrontUp ? 1.15 : 1);
+
+  const leftDelay = AC.createDelay(0.01);
+  const rightDelay = AC.createDelay(0.01);
+  const itdSec = Math.abs(side) * 0.00066; // 실측 인간 양이간 시간차 최대치(~0.66ms)에 맞춤
+  leftDelay.delayTime.value = side > 0 ? itdSec : 0;
+  rightDelay.delayTime.value = side < 0 ? itdSec : 0;
+
+  const merger = AC.createChannelMerger(2);
+  presenceF.connect(frontBackF);
+  frontBackF.connect(leftG); leftG.connect(leftDelay); leftDelay.connect(merger, 0, 0);
+  frontBackF.connect(rightG); rightG.connect(rightDelay); rightDelay.connect(merger, 0, 1);
+
+  const entry = { frontBackF, presenceF, leftG, rightG, leftDelay, rightDelay, merger };
+  _litePannerStatic[dir] = entry;
+  return entry;
+}
+
+function mkLitePanner(dir, dist01) {
+  const { presenceF, merger } = _getLitePannerStatic(dir);
+
+  // 거리에 따라 변하는 노드만 매번 새로 만든다 (2개뿐이라 부담이 작다).
+  const distLP = AC.createBiquadFilter();
+  distLP.type = 'lowpass';
+  distLP.frequency.value = 1800 + dist01 * 6200;
+  distLP.connect(presenceF);
+
+  const gain = AC.createGain();
+  const r = 12 * (1 - dist01) + 0.8;
+  gain.gain.value = Math.pow(Math.max(r, 1) / 1, -2.2);
+  merger.connect(gain);
+
+  // merger는 방향별로 공유되므로, 이 소리가 끝나면 merger→gain 연결만 끊어
+  // 다음 소리가 쓸 수 있게 정리한다. distLP는 짧은 수명이라 GC에 맡긴다.
+  return {
+    input: distLP,
+    output: gain,
+    _cleanup: () => { try { merger.disconnect(gain); } catch(e) {} }
+  };
+}
+
+// ─── 3D 패너 (HRTF - Head-Related Transfer Function)
+function mkPanner(dir, dist01) {
+  const p = AC.createPanner();
+  p.panningModel = 'HRTF';
+  p.distanceModel = 'exponential';
+  p.refDistance = 1;
+  p.maxDistance = 25;
+  p.rolloffFactor = 2.2;
+  p.coneInnerAngle = 360;
+
+  // 시계 방향 각도 → 3D 공간 좌표 (이전 버전과 동일한 감쇠 특성 유지)
+  const angMap = { 11: 225, 12: 270, 1: 315, 9: 180, 3: 0 };
+  const ang = (angMap[dir] || 0) * Math.PI / 180;
+  const r = 12 * (1 - dist01) + 0.8;
+  const elev = (dir === 11 || dir === 12 || dir === 1) ? 3.5 * (1 - dist01) : 0;
+
+  p.positionX.value = Math.cos(ang) * r;
+  p.positionY.value = elev;
+  p.positionZ.value = -Math.sin(ang) * r;
+  return p;
+}
+
+// ─── 신호를 wet/dry mix로 출력
+// [성능] 예전엔 사격 때마다 HRTF PannerNode(mkPanner)를 새로 만들었다. 총소리는
+// 연사 무기(특히 피스톨)에서 초당 여러 번 재생되는 가장 빈번한 소리라, HRTF의
+// 무거운 컨볼루션 연산이 반복 생성되며 저사양 기기의 오디오 스레드를 밀어내는
+// 핵심 병목이었다. 경량 패너(mkLitePanner)로 교체해 방향/거리 감쇠·wet/dry 믹스는
+// 그대로 유지하면서 HRTF 연산 자체를 없앴다.
+function routeAudio(node, pannerDir, panDist, wetRatio = 0.35, dryGain = 0.9) {
+  if (pannerDir != null) {
+    const lp = mkLitePanner(pannerDir, panDist != null ? panDist : 0.5);
+    node.connect(lp.input);
+    const w = AC.createGain(); w.gain.value = wetRatio;
+    lp.output.connect(w); w.connect(revConv);
+    const d = AC.createGain(); d.gain.value = dryGain;
+    lp.output.connect(d); d.connect(mGain);
+    // 소리가 끝난 뒤(넉넉히 1.5초) 공유 merger 연결을 정리해 다음 소리가 재사용할 수 있게 함
+    setTimeout(() => lp._cleanup(), 1500);
+  } else {
+    const w = AC.createGain(); w.gain.value = wetRatio;
+    node.connect(w); w.connect(revConv);
+    const d = AC.createGain(); d.gain.value = dryGain;
+    node.connect(d); d.connect(mGain);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  🔫 무기 음향 - 실제 총기 소리에 가까운 합성
+// ══════════════════════════════════════════════════════
+
+// 피스톨: 임팩트 크랙 + 꼬리 울림 + 탄피 소리
+// 피스톨 사운드 버퍼 캐시 - 연사 시 매번 새로 합성하면 부하가 커지므로 미리 만들어 재사용
+let _pistolBufCache = null;
+function getPistolBuffers() {
+  if (_pistolBufCache) return _pistolBufCache;
+  const crackLen = AC.sampleRate * 0.06;
+  const crackBuf = AC.createBuffer(1, crackLen, AC.sampleRate);
+  const cd = crackBuf.getChannelData(0);
+  for (let i = 0; i < crackLen; i++) {
+    const t = i / AC.sampleRate;
+    cd[i] = (Math.random() * 2 - 1) * Math.exp(-t * 80) * 0.95
+           + Math.sin(2 * Math.PI * 2200 * t) * Math.exp(-t * 120) * 0.3;
+  }
+  const thudLen = AC.sampleRate * 0.18;
+  const thudBuf = AC.createBuffer(1, thudLen, AC.sampleRate);
+  const td = thudBuf.getChannelData(0);
+  for (let i = 0; i < thudLen; i++) {
+    const t = i / AC.sampleRate;
+    td[i] = Math.sin(2 * Math.PI * 85 * t) * Math.exp(-t * 22) * 0.8
+           + Math.sin(2 * Math.PI * 140 * t) * Math.exp(-t * 28) * 0.4
+           + (Math.random() * 2 - 1) * Math.exp(-t * 35) * 0.2;
+  }
+  _pistolBufCache = { crackBuf, thudBuf };
+  return _pistolBufCache;
+}
+
+// ─── 방향(dir)을 단순 좌우 스테레오 팬 값으로 매핑 (필터 체인 없음, 아주 가벼움)
+// 총소리·좀비 사망음처럼 "또렷하게 잘 들려야 하는" 소리에 사용.
+// 좌우 위치 정보는 남기되, 로우패스/하이셸프 등 톤을 바꾸는 필터를 전혀 거치지
+// 않으므로 원음 그대로 선명하게 들린다.
+function dirToSimplePan(dir) {
+  const panMap = { 11: -0.5, 12: 0, 1: 0.5, 9: -1, 3: 1 };
+  return panMap[dir] != null ? panMap[dir] : 0;
+}
+
+function sndPistol(dir) {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const { crackBuf, thudBuf } = getPistolBuffers();
+  const pan = AC.createStereoPanner(); pan.pan.value = dirToSimplePan(dir);
+  pan.connect(mGain);
+
+  // 1) 임팩트 크랙 (초단파 화이트 노이즈 버스트)
+  const crackSrc = AC.createBufferSource();
+  crackSrc.buffer = crackBuf;
+  const crackG = AC.createGain(); crackG.gain.value = 1.0;
+  const crackWS = AC.createWaveShaper(); crackWS.curve = distCurve(60);
+  crackSrc.connect(crackWS); crackWS.connect(crackG);
+  crackG.connect(pan);
+  crackSrc.start(now);
+
+  // 2) 저주파 쿵 (총신 울림)
+  const thudSrc = AC.createBufferSource();
+  thudSrc.buffer = thudBuf;
+  const thudG = AC.createGain(); thudG.gain.value = 0.85;
+  thudSrc.connect(thudG);
+  thudG.connect(pan);
+  thudSrc.start(now);
+
+  // 3) 탄피 소리 (0.08초 뒤, 오른쪽에서)
+  setTimeout(() => {
+    if (!AC) return;
+    const osc = AC.createOscillator(); osc.type = 'triangle';
+    osc.frequency.setValueAtTime(3200, AC.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1800, AC.currentTime + 0.05);
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.06, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.07);
+    const pan2 = AC.createStereoPanner(); pan2.pan.value = 0.6;
+    osc.connect(g); g.connect(pan2); pan2.connect(mGain);
+    osc.start(); osc.stop(AC.currentTime + 0.07);
+  }, 80);
+}
+
+// 샷건: 다중 펠릿 + 두꺼운 저음 + 넓은 확산
+function sndShotgun(dir) {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const sr = AC.sampleRate;
+
+  // 1) 메인 블라스트 - 3개 노이즈 레이어 (저/중/고)
+  const layers = [
+    { dur: 0.55, decay: 5,  freqL: 40,  freqH: 200, vol: 0.95 },
+    { dur: 0.35, decay: 12, freqL: 150, freqH: 600, vol: 0.7  },
+    { dur: 0.18, decay: 30, freqL: 800, freqH: 3000, vol: 0.45 },
+  ];
+  const sgPan = AC.createStereoPanner(); sgPan.pan.value = dirToSimplePan(dir);
+  sgPan.connect(mGain);
+  layers.forEach(({ dur, decay, freqL, freqH, vol }) => {
+    const len = sr * dur;
+    const buf = AC.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      for (let i = 0; i < len; i++) {
+        const t = i / sr;
+        d[i] = (Math.random() * 2 - 1) * Math.exp(-t * decay) * vol;
+      }
+    }
+    const src = AC.createBufferSource(); src.buffer = buf;
+    // 밴드패스 필터
+    const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass';
+    bpf.frequency.value = (freqL + freqH) / 2;
+    bpf.Q.value = 0.8;
+    const g = AC.createGain(); g.gain.value = vol;
+    src.connect(bpf); bpf.connect(g);
+    g.connect(sgPan);
+    src.start(now);
+  });
+
+  // 2) 펠릿 확산 - 여러 방향 짧은 크랙
+  for (let p = 0; p < 5; p++) {
+    setTimeout(() => {
+      if (!AC) return;
+      const osc = AC.createOscillator(); osc.type = 'sawtooth';
+      osc.frequency.value = 800 + Math.random() * 1200;
+      const g = AC.createGain();
+      g.gain.setValueAtTime(0.04, AC.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.04);
+      const pan = AC.createStereoPanner(); pan.pan.value = (Math.random() - 0.5) * 1.2;
+      osc.connect(g); g.connect(pan); pan.connect(mGain);
+      osc.start(); osc.stop(AC.currentTime + 0.04);
+    }, p * 8 + Math.random() * 10);
+  }
+
+  // 3) 격발 메커니즘 (딸깍)
+  setTimeout(() => {
+    if (!AC) return;
+    const buf2 = AC.createBuffer(1, sr * 0.04, sr);
+    const d2 = buf2.getChannelData(0);
+    for (let i = 0; i < d2.length; i++) {
+      const t = i / sr;
+      d2[i] = (Math.random() * 2 - 1) * Math.exp(-t * 80) * 0.25;
+    }
+    const src2 = AC.createBufferSource(); src2.buffer = buf2;
+    const g2 = AC.createGain(); g2.gain.value = 0.5;
+    src2.connect(g2); g2.connect(mGain);
+    src2.start();
+  }, 550);
+}
+
+// 로켓런처: 발사 + 비행 + 폭발
+function sndRocket() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const sr = AC.sampleRate;
+
+  // 1) 발사 화염 (0 ~ 0.4s)
+  const launchLen = sr * 0.4;
+  const launchBuf = AC.createBuffer(2, launchLen, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = launchBuf.getChannelData(ch);
+    for (let i = 0; i < launchLen; i++) {
+      const t = i / sr;
+      d[i] = (Math.random() * 2 - 1) * (0.3 + t * 1.5) * Math.exp(-t * 3) * 0.9;
+    }
+  }
+  const launchSrc = AC.createBufferSource(); launchSrc.buffer = launchBuf;
+  const lpf = AC.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 1200;
+  const launchG = AC.createGain(); launchG.gain.value = 0.8;
+  launchSrc.connect(lpf); lpf.connect(launchG);
+  routeAudio(launchG, null, null, 0.6, 0.9);
+  launchSrc.start(now);
+
+  // 2) 비행 휘파람 (도플러)
+  const flyOsc = AC.createOscillator(); flyOsc.type = 'sine';
+  flyOsc.frequency.setValueAtTime(2400, now + 0.1);
+  flyOsc.frequency.exponentialRampToValueAtTime(400, now + 0.5);
+  const flyG = AC.createGain();
+  flyG.gain.setValueAtTime(0, now + 0.05);
+  flyG.gain.linearRampToValueAtTime(0.12, now + 0.2);
+  flyG.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+  flyOsc.connect(flyG); flyG.connect(mGain);
+  flyOsc.start(now + 0.05); flyOsc.stop(now + 0.6);
+
+  // 3) 폭발 (0.5s 뒤)
+  setTimeout(() => {
+    if (!AC) return;
+    const expLen = sr * 2.0;
+    const expBuf = AC.createBuffer(2, expLen, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = expBuf.getChannelData(ch);
+      for (let i = 0; i < expLen; i++) {
+        const t = i / sr;
+        // 초기 충격파 + 긴 꼬리
+        const shock = Math.exp(-t * 18) * 0.95;
+        const rumble = Math.exp(-t * 2.5) * 0.5;
+        const bass = Math.sin(2 * Math.PI * 28 * t) * Math.exp(-t * 3.5) * 0.6;
+        d[i] = (Math.random() * 2 - 1) * (shock + rumble) + bass;
+      }
+    }
+    const expSrc = AC.createBufferSource(); expSrc.buffer = expBuf;
+    const expComp = AC.createDynamicsCompressor();
+    expComp.threshold.value = -3; expComp.ratio.value = 16;
+    const expG = AC.createGain(); expG.gain.value = 1.1;
+    expSrc.connect(expComp); expComp.connect(expG);
+    routeAudio(expG, null, null, 0.7, 1.0);
+    expSrc.start();
+
+    // 잔향 쉐이크
+    const rumOsc = AC.createOscillator(); rumOsc.type = 'sine';
+    rumOsc.frequency.value = 32;
+    const rumG = AC.createGain();
+    rumG.gain.setValueAtTime(0.25, AC.currentTime);
+    rumG.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 1.2);
+    rumOsc.connect(rumG); rumG.connect(mGain);
+    rumOsc.start(); rumOsc.stop(AC.currentTime + 1.3);
+  }, 500);
+}
+
+// 사시미칼: 공기 가르는 소리 + 충격음
+function sndKnife(dir) {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const sr = AC.sampleRate;
+
+  // 1) 스윙 (주파수 하강 sweep)
+  const swLen = sr * 0.22;
+  const swBuf = AC.createBuffer(1, swLen, sr);
+  const sd = swBuf.getChannelData(0);
+  for (let i = 0; i < swLen; i++) {
+    const t = i / sr, n = i / swLen;
+    // 고주파 → 저주파 급강하 (도플러 시뮬레이션)
+    sd[i] = Math.sin(2 * Math.PI * (3500 - 3000 * n) * t)
+           * Math.exp(-t * 5) * 0.3
+           + (Math.random() * 2 - 1) * Math.exp(-t * 12) * 0.18;
+  }
+  const swSrc = AC.createBufferSource(); swSrc.buffer = swBuf;
+  const hpf = AC.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 1500;
+  const swG = AC.createGain(); swG.gain.value = 0.7;
+  swSrc.connect(hpf); hpf.connect(swG);
+  // 공격하는 방향에서 재생 (근접 거리, dist01=1.0이 가장 가까움)
+  const swLP = mkLitePanner(dir != null ? dir : 12, 1.0);
+  swG.connect(swLP.input); swLP.output.connect(mGain);
+  swSrc.start(now);
+  setTimeout(() => swLP._cleanup(), 260);
+
+  // 2) 충격음 (찍)
+  setTimeout(() => {
+    if (!AC) return;
+    const buf2 = AC.createBuffer(1, sr * 0.05, sr);
+    const d2 = buf2.getChannelData(0);
+    for (let i = 0; i < d2.length; i++) {
+      const t = i / sr;
+      d2[i] = (Math.random() * 2 - 1) * Math.exp(-t * 100) * 0.6
+             + Math.sin(2 * Math.PI * 800 * t) * Math.exp(-t * 90) * 0.3;
+    }
+    const src2 = AC.createBufferSource(); src2.buffer = buf2;
+    const g2 = AC.createGain(); g2.gain.value = 0.65;
+    src2.connect(g2); g2.connect(mGain);
+    src2.start();
+  }, 180);
+}
+
+// ══════════════════════════════════════════════════════
+//  🧟 좀비 음향 - 유기적 음성 합성
+// ══════════════════════════════════════════════════════
+
+// 좀비 신음: 복수 오실레이터 + 포르만트 필터
+// 동시에 너무 많은 신음소리가 겹치면 저사양 기기에서 오디오가 밀리므로 상한을 둠
+let _activeGroans = 0;
+const MAX_CONCURRENT_GROANS = 3;
+
+// 신음 호흡 노이즈 캐시 (고정 길이로 통일해 캐싱 가능하게 함)
+const GROAN_DUR = 0.7;
+let _groanBreathCache = null;
+function getGroanBreathBuffers() {
+  if (_groanBreathCache) return _groanBreathCache;
+  const breathLen = Math.floor(AC.sampleRate * GROAN_DUR);
+  _groanBreathCache = [];
+  for (let v = 0; v < 3; v++) {
+    const buf = AC.createBuffer(1, breathLen, AC.sampleRate);
+    const bd = buf.getChannelData(0);
+    for (let i = 0; i < breathLen; i++) { const t = i / AC.sampleRate; bd[i] = (Math.random() * 2 - 1) * Math.exp(-Math.abs(t - GROAN_DUR * 0.3) * 4) * 0.3; }
+    _groanBreathCache.push(buf);
+  }
+  return _groanBreathCache;
+}
+
+function sndGroan(dir, dist01) {
+  if (!AC) return;
+  if (_activeGroans >= MAX_CONCURRENT_GROANS) return;
+  _activeGroans++;
+  const now = AC.currentTime;
+  const dur = GROAN_DUR;
+  const basePitch = 48 + Math.random() * 22;
+
+  // 포르만트 필터 (모음 'ㅏ' 근사)
+  const f1 = 720, f2 = 1090;
+
+  // 성대 진동 (톱니파 기반 보코더)
+  const glottis = AC.createOscillator();
+  glottis.type = 'sawtooth';
+  glottis.frequency.setValueAtTime(basePitch, now);
+  glottis.frequency.setValueAtTime(basePitch * 0.88, now + dur * 0.4);
+  glottis.frequency.linearRampToValueAtTime(basePitch * 0.72, now + dur);
+
+  // LFO (떨림)
+  const lfo = AC.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 4.5 + Math.random() * 2.5;
+  const lfoG = AC.createGain(); lfoG.gain.value = 5 + Math.random() * 4;
+  lfo.connect(lfoG); lfoG.connect(glottis.frequency);
+
+  // 포르만트 F1
+  const bp1 = AC.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = f1; bp1.Q.value = 3.5;
+  // 포르만트 F2
+  const bp2 = AC.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = f2; bp2.Q.value = 2.8;
+  // 호흡 노이즈 - 캐시된 버퍼 재사용 (매번 합성하지 않음)
+  const breathVariants = getGroanBreathBuffers();
+  const breathBuf = breathVariants[~~(Math.random() * breathVariants.length)];
+  const breathSrc = AC.createBufferSource(); breathSrc.buffer = breathBuf;
+
+  const mergeG = AC.createGain(); mergeG.gain.value = 0.5;
+  const ws = AC.createWaveShaper(); ws.curve = distCurve(40);
+
+  glottis.connect(ws); ws.connect(bp1); ws.connect(bp2);
+  bp1.connect(mergeG); bp2.connect(mergeG); breathSrc.connect(mergeG);
+
+  const envG = AC.createGain();
+  envG.gain.setValueAtTime(0, now);
+  envG.gain.linearRampToValueAtTime(0.32 * Math.max(dist01, 0.08), now + 0.08);
+  envG.gain.setValueAtTime(0.32 * Math.max(dist01, 0.08), now + dur * 0.7);
+  envG.gain.exponentialRampToValueAtTime(0.001, now + dur);
+  mergeG.connect(envG);
+
+  // 리버브 생략 (빈번한 소리라 CPU 부담이 큼) - 직접음만으로도 방향/거리감 충분
+  // HRTF 대신 경량 패너 사용 (빈번한 소리라 CPU 부담 최소화)
+  const lp = mkLitePanner(dir, dist01);
+  envG.connect(lp.input);
+  const dG = AC.createGain(); dG.gain.value = 0.85; lp.output.connect(dG); dG.connect(mGain);
+
+  glottis.start(now); lfo.start(now); breathSrc.start(now);
+  glottis.stop(now + dur); lfo.stop(now + dur);
+  setTimeout(() => { _activeGroans = Math.max(0, _activeGroans - 1); lp._cleanup(); }, Math.ceil(dur * 1000) + 20);
+}
+
+// 발소리용 노이즈 버퍼 캐시 - 매 걸음마다 새로 합성하면 저사양 기기에서 오디오 렌더링이 밀려
+// 지직거림/끊김이 발생하므로, 몇 가지 변형을 미리 만들어두고 재사용한다.
+let _stepNoiseCache = null;
+function getStepNoiseBuffers(isBoss) {
+  if (!_stepNoiseCache) _stepNoiseCache = { zombie: [], boss: [] };
+  const key = isBoss ? 'boss' : 'zombie';
+  if (_stepNoiseCache[key].length === 0) {
+    const dur = isBoss ? 0.22 : 0.14;
+    const nLen = Math.floor(AC.sampleRate * dur);
+    for (let v = 0; v < 3; v++) {
+      const buf = AC.createBuffer(1, nLen, AC.sampleRate);
+      const nd = buf.getChannelData(0);
+      for (let i = 0; i < nLen; i++) { const t = i / nLen; nd[i] = (Math.random() * 2 - 1) * Math.exp(-t * 9); }
+      _stepNoiseCache[key].push(buf);
+    }
+  }
+  return _stepNoiseCache[key];
+}
+
+// 동시에 너무 많은 발소리가 겹치면 저사양 기기에서 오디오가 밀리므로 상한을 둠
+let _activeFootsteps = 0;
+const MAX_CONCURRENT_FOOTSTEPS = 4;
+
+// 좀비 발소리: 저음 쿵 + 마찰 노이즈 (방향 인지용, 명확하게)
+function sndFootstep(dir, dist01, isBoss) {
+  if (!AC) return;
+  if (_activeFootsteps >= MAX_CONCURRENT_FOOTSTEPS) return;
+  _activeFootsteps++;
+  const now = AC.currentTime;
+  const dur = isBoss ? 0.22 : 0.14;
+
+  // 저음 임팩트 (발이 바닥을 딛는 순간)
+  const thud = AC.createOscillator();
+  thud.type = 'sine';
+  const basePitch = isBoss ? (55 + Math.random() * 8) : (95 + Math.random() * 20);
+  thud.frequency.setValueAtTime(basePitch, now);
+  thud.frequency.exponentialRampToValueAtTime(basePitch * 0.5, now + dur);
+
+  const thudG = AC.createGain();
+  const peak = (isBoss ? 0.9 : 0.55) * (0.35 + 0.65 * dist01);
+  thudG.gain.setValueAtTime(0, now);
+  thudG.gain.linearRampToValueAtTime(peak, now + 0.008);
+  thudG.gain.exponentialRampToValueAtTime(0.001, now + dur);
+  thud.connect(thudG);
+
+  // 마찰/충격 노이즈 (바닥 질감) - 캐시된 버퍼 재사용 (매번 합성하지 않음)
+  const variants = getStepNoiseBuffers(isBoss);
+  const nBuf = variants[~~(Math.random() * variants.length)];
+  const nSrc = AC.createBufferSource(); nSrc.buffer = nBuf;
+  const nFilt = AC.createBiquadFilter(); nFilt.type = 'lowpass'; nFilt.frequency.value = isBoss ? 900 : 1600;
+  const nG = AC.createGain(); nG.gain.value = (isBoss ? 0.5 : 0.3) * (0.35 + 0.65 * dist01);
+  nSrc.connect(nFilt); nFilt.connect(nG);
+
+  const mergeG = AC.createGain();
+  thudG.connect(mergeG); nG.connect(mergeG);
+
+  const lp = mkLitePanner(dir, dist01);
+  mergeG.connect(lp.input);
+  lp.output.connect(mGain);
+
+  thud.start(now); thud.stop(now + dur);
+  nSrc.start(now);
+  setTimeout(() => { _activeFootsteps = Math.max(0, _activeFootsteps - 1); lp._cleanup(); }, Math.ceil(dur * 1000) + 20);
+}
+
+
+// 피격 비명용 노이즈 버퍼 캐시
+let _hitNoiseCache = null;
+function getHitNoiseBuffer() {
+  if (_hitNoiseCache) return _hitNoiseCache;
+  const sr = AC.sampleRate;
+  const nLen = sr * 0.18;
+  const nBuf = AC.createBuffer(1, nLen, sr);
+  const nd = nBuf.getChannelData(0);
+  for (let i = 0; i < nLen; i++) { const t = i/sr; nd[i] = (Math.random()*2-1)*Math.exp(-t*28)*0.5; }
+  _hitNoiseCache = nBuf;
+  return _hitNoiseCache;
+}
+
+function sndZombieHit(dir) {
+  if (!AC) return;
+  const now = AC.currentTime;
+
+  // 성대 충격 - "으" 모음 (F1≈300, F2≈800)
+  const glot = AC.createOscillator(); glot.type = 'sawtooth';
+  glot.frequency.setValueAtTime(140 + Math.random() * 40, now);
+  glot.frequency.setValueAtTime(110, now + 0.05);
+  glot.frequency.exponentialRampToValueAtTime(55, now + 0.22);
+
+  const ws = AC.createWaveShaper(); ws.curve = distCurve(120);
+  const bp1 = AC.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 320; bp1.Q.value = 4;
+  const bp2 = AC.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 900; bp2.Q.value = 3;
+
+  // 충격 노이즈 "억" 끝소리 - 캐시된 버퍼 재사용
+  const nSrc = AC.createBufferSource(); nSrc.buffer = getHitNoiseBuffer();
+
+  const mix = AC.createGain(); mix.gain.value = 0.6;
+  glot.connect(ws); ws.connect(bp1); ws.connect(bp2);
+  bp1.connect(mix); bp2.connect(mix); nSrc.connect(mix);
+
+  const envG = AC.createGain();
+  envG.gain.setValueAtTime(0, now);
+  envG.gain.linearRampToValueAtTime(0.55, now + 0.02);
+  envG.gain.setValueAtTime(0.55, now + 0.08);
+  envG.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  mix.connect(envG);
+
+  const lp = mkLitePanner(dir, 0.4);
+  envG.connect(lp.input);
+  const wG = AC.createGain(); wG.gain.value = 0.5; lp.output.connect(wG); wG.connect(revConv);
+  const dG = AC.createGain(); dG.gain.value = 0.85; lp.output.connect(dG); dG.connect(mGain);
+
+  glot.start(now); nSrc.start(now);
+  glot.stop(now + 0.28);
+  setTimeout(() => lp._cleanup(), 320);
+}
+
+// 좀비 사망: "으아아악!!" 절규 단말마
+// 사망 비명용 노이즈 버퍼 캐시
+let _dieNoiseCache = null;
+function getDieNoiseBuffer(dur) {
+  if (_dieNoiseCache) return _dieNoiseCache;
+  const sr = AC.sampleRate;
+  const nLen = sr * dur;
+  const nBuf = AC.createBuffer(1, nLen, sr);
+  const nd = nBuf.getChannelData(0);
+  for (let i = 0; i < nLen; i++) {
+    const t = i / sr;
+    const cut = t > 0.45 && t < 0.52 ? 0 : 1;
+    nd[i] = (Math.random()*2-1) * Math.exp(-t * 4) * 0.45 * cut;
+  }
+  _dieNoiseCache = nBuf;
+  return _dieNoiseCache;
+}
+
+function sndZombieDie(dir, prox) {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const dur = 0.9;
+  // prox(0~1): 접근 중 비명용. 멀수록 작고 먹먹하게, 가까울수록 크고 또렷하게. 생략하면 기존 사망음 그대로.
+  const hasProx = typeof prox === 'number';
+
+  // 1) 성대 절규 - 높이 치솟았다가 끊기게 꺾임
+  const glot = AC.createOscillator(); glot.type = 'sawtooth';
+  glot.frequency.setValueAtTime(160 + Math.random() * 60, now);
+  glot.frequency.linearRampToValueAtTime(340 + Math.random() * 80, now + 0.18); // 으아 올라가고
+  glot.frequency.setValueAtTime(280, now + 0.32);
+  glot.frequency.exponentialRampToValueAtTime(28, now + dur);                   // 뚝 떨어짐
+
+  // LFO 떨림 (공포에 떠는 느낌)
+  const lfo = AC.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 9;
+  const lfoG = AC.createGain(); lfoG.gain.value = 18;
+  lfo.connect(lfoG); lfoG.connect(glot.frequency);
+
+  const ws = AC.createWaveShaper(); ws.curve = distCurve(160);
+
+  // 포르만트 - "으아" (F1=700, F2=1200)
+  const bp1 = AC.createBiquadFilter(); bp1.type = 'bandpass'; bp1.frequency.value = 700; bp1.Q.value = 3.5;
+  const bp2 = AC.createBiquadFilter(); bp2.type = 'bandpass'; bp2.frequency.value = 1200; bp2.Q.value = 2.8;
+
+  // 2) 숨 끊기는 노이즈 - 캐시된 버퍼 재사용
+  const nSrc = AC.createBufferSource(); nSrc.buffer = getDieNoiseBuffer(dur);
+
+  const mix = AC.createGain(); mix.gain.value = 0.65;
+  glot.connect(ws); ws.connect(bp1); ws.connect(bp2);
+  bp1.connect(mix); bp2.connect(mix); nSrc.connect(mix);
+
+  const envG = AC.createGain();
+  envG.gain.setValueAtTime(0, now);
+  envG.gain.linearRampToValueAtTime(0.7, now + 0.04);   // 빠르게 으아!
+  envG.gain.setValueAtTime(0.65, now + 0.35);
+  envG.gain.linearRampToValueAtTime(0.0, now + 0.5);    // 컷
+  envG.gain.linearRampToValueAtTime(0.18, now + 0.55);  // 마지막 헐떡
+  envG.gain.exponentialRampToValueAtTime(0.001, now + dur);
+  mix.connect(envG);
+
+  const diePan = AC.createStereoPanner(); diePan.pan.value = dirToSimplePan(dir);
+  if (hasProx) {
+    const p = Math.max(0, Math.min(prox, 1));
+    const distG = AC.createGain(); distG.gain.value = 0.15 + 0.85 * p;
+    const distLp = AC.createBiquadFilter(); distLp.type = 'lowpass';
+    distLp.frequency.value = 600 + 7400 * p * p;
+    envG.connect(distLp); distLp.connect(distG); distG.connect(diePan);
+  } else {
+    envG.connect(diePan);
+  }
+  diePan.connect(mGain);
+
+  glot.start(now); lfo.start(now); nSrc.start(now);
+  glot.stop(now + dur); lfo.stop(now + dur);
+}
+
+// 접근 중 비명: 동시 재생 수 제한 (좀비가 많을 때 소리가 뭉개지지 않도록)
+let _activeScreams = 0;
+const MAX_CONCURRENT_SCREAMS = 3;
+function sndApproachScream(dir, prox) {
+  if (!AC || _activeScreams >= MAX_CONCURRENT_SCREAMS) return;
+  _activeScreams++;
+  sndZombieDie(dir, prox);
+  setTimeout(() => { _activeScreams = Math.max(0, _activeScreams - 1); }, 900);
+}
+
+// ══════════════════════════════════════════════════════
+//  🔔 442Hz 삐삐삐 접근 경보 시스템
+//  좀비별로 방향마다 독립 인터벌, 가까울수록 빠르게
+// ══════════════════════════════════════════════════════
+const beepIntervals = {}; // dir → intervalId
+
+function sndBeep442(dir, urgency) {
+  if (!AC) return;
+  const now = AC.currentTime;
+  // 기본 442Hz, urgency에 따라 약간 올라감 (긴박감)
+  const freq = 442 + urgency * 80;
+  const vol  = 0.08 + urgency * 0.18;
+  const dur  = 0.055;
+
+  const osc = AC.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(vol, now + 0.008);
+  g.gain.setValueAtTime(vol, now + dur - 0.01);
+  g.gain.linearRampToValueAtTime(0, now + dur);
+
+  const lp = mkLitePanner(dir, urgency);
+  osc.connect(g); g.connect(lp.input);
+  const dG = AC.createGain(); dG.gain.value = 0.9;
+  lp.output.connect(dG); dG.connect(mGain);
+
+  osc.start(now); osc.stop(now + dur + 0.01);
+  setTimeout(() => lp._cleanup(), 90);
+}
+
+// 각 방향별로 활성 좀비 수 + 최대 urgency 계산
+function getBeepState() {
+  const state = {}; // dir → { count, maxUrg }
+  const checkZ = (z) => {
+    if (z.dead) return;
+    const pct = Math.min((Date.now() - z.startTime) / z.speed, 1);
+    if (pct < 0.15) return; // 아직 너무 멀면 무시
+    const urg = Math.pow(pct, 2);
+    const d = z.dir;
+    if (!state[d]) state[d] = { count: 0, maxUrg: 0 };
+    state[d].count++;
+    state[d].maxUrg = Math.max(state[d].maxUrg, urg);
+  };
+  S.zombies.forEach(checkZ);
+  if (S.boss) checkZ(S.boss);
+  return state;
+}
+
+let beepMaster = null;
+
+function startBeepSystem() {
+  if (beepMaster) clearInterval(beepMaster);
+  // 50ms마다 체크해서 각 방향 삐 타이밍 관리
+  const dirNextBeep = {}; // dir → 다음 삐 울릴 timestamp
+  beepMaster = setInterval(() => {
+    if (!AC || S.paused || S.gameOver) return;
+    const now = Date.now();
+    const state = getBeepState();
+
+    // 활성 방향에서 삐
+    Object.entries(state).forEach(([dir, { count, maxUrg }]) => {
+      // urgency에 따라 간격 결정: 0.5초(멀 때) ~ 0.12초(바로 옆)
+      const interval = Math.max(160, 500 - maxUrg * 340);
+      const key = dir;
+      if (!dirNextBeep[key] || now >= dirNextBeep[key]) {
+        // 같은 방향에 2마리 이상이면 두 번 연속 삐삐
+        sndBeep442(Number(dir), maxUrg);
+        if (count >= 2) {
+          setTimeout(() => { if (AC && !S.paused && !S.gameOver) sndBeep442(Number(dir), maxUrg); }, 80);
+        }
+        dirNextBeep[key] = now + interval;
+      }
+    });
+  }, 50);
+}
+
+function stopBeepSystem() {
+  if (beepMaster) { clearInterval(beepMaster); beepMaster = null; }
+}
+
+// ══════════════════════════════════════════════════════
+//  🔊 환경 / 피격 음향
+// ══════════════════════════════════════════════════════
+
+// 피격 (물어뜯기): 뒤쪽 + 살점 소리
+function sndBite() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const sr = AC.sampleRate;
+
+  // 물리는 충격 (중·저음)
+  const biteLen = sr * 0.22;
+  const biteBuf = AC.createBuffer(2, biteLen, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = biteBuf.getChannelData(ch);
+    for (let i = 0; i < biteLen; i++) {
+      const t = i / sr;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 20) * 0.7
+             + Math.sin(2 * Math.PI * 180 * t) * Math.exp(-t * 15) * 0.35;
+    }
+  }
+  const biteSrc = AC.createBufferSource(); biteSrc.buffer = biteBuf;
+  const biteG = AC.createGain(); biteG.gain.value = 0.75;
+  biteSrc.connect(biteG);
+  // 뒤에서 들리는 효과 (z+ = 뒤)
+  const backPan = AC.createPanner(); backPan.panningModel = 'HRTF';
+  backPan.positionX.value = 0; backPan.positionY.value = 0; backPan.positionZ.value = 5;
+  biteG.connect(backPan); backPan.connect(mGain);
+  biteSrc.start(now);
+
+  // 고통 신음 (피격자 목소리 - 살짝)
+  setTimeout(() => {
+    if (!AC) return;
+    const osc = AC.createOscillator(); osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, AC.currentTime); osc.frequency.linearRampToValueAtTime(200, AC.currentTime + 0.2);
+    const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 900; bpf.Q.value = 2;
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.08, AC.currentTime); g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.22);
+    osc.connect(bpf); bpf.connect(g); g.connect(mGain);
+    osc.start(); osc.stop(AC.currentTime + 0.22);
+  }, 40);
+}
+
+// 장전 (클릭-클락-클릭)
+function sndReload() {
+  if (!AC) return;
+  const sr = AC.sampleRate;
+  const clicks = [
+    { t: 0,    freq: 2800, dur: 0.06, vol: 0.12, pan: -0.3 },
+    { t: 0.18, freq: 1800, dur: 0.08, vol: 0.1,  pan:  0.0 },
+    { t: 0.38, freq: 3500, dur: 0.05, vol: 0.13, pan:  0.3 },
+  ];
+  clicks.forEach(({ t, freq, dur, vol, pan }) => {
+    const len = sr * dur;
+    const buf = AC.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const s = i / sr;
+      d[i] = (Math.random() * 2 - 1) * Math.exp(-s * (1 / dur) * 6) * vol
+             + Math.sin(2 * Math.PI * freq * s) * Math.exp(-s * (1 / dur) * 8) * vol * 0.5;
+    }
+    const src = AC.createBufferSource(); src.buffer = buf;
+    const spPan = AC.createStereoPanner(); spPan.pan.value = pan;
+    const g = AC.createGain(); g.gain.value = 1.0;
+    src.connect(g); g.connect(spPan); spPan.connect(mGain);
+    src.start(AC.currentTime + t);
+  });
+}
+
+// 보스 경보 사이렌
+function sndBossAlarm() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  // 경찰차 사이렌 느낌 (두 주파수 교차)
+  for (let i = 0; i < 6; i++) {
+    const osc = AC.createOscillator(); osc.type = 'square';
+    const t = now + i * 0.2;
+    osc.frequency.setValueAtTime(i % 2 === 0 ? 980 : 720, t);
+    osc.frequency.linearRampToValueAtTime(i % 2 === 0 ? 750 : 950, t + 0.18);
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0.11, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.19);
+    const lpf = AC.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 2000;
+    osc.connect(lpf); lpf.connect(g);
+    const wG = AC.createGain(); wG.gain.value = 0.4; g.connect(wG); wG.connect(revConv);
+    const dG = AC.createGain(); dG.gain.value = 0.35; g.connect(dG); dG.connect(mGain);
+    osc.start(t); osc.stop(t + 0.2);
+  }
+}
+
+// KTX 차임벨 - 실제 차임 구조 시뮬레이션 (금속 공명)
+// 재장전 휴식 알림 - 짧고 명확한 2음 차임
+function sndReloadBreakChime() {
+  if (!AC) return;
+  [{ f: 880, t: 0 }, { f: 1174.66, t: 0.12 }].forEach(({ f, t }) => {
+    const st = AC.currentTime + t;
+    const osc = AC.createOscillator(); osc.type = 'sine'; osc.frequency.value = f;
+    const g = AC.createGain();
+    g.gain.setValueAtTime(0, st);
+    g.gain.linearRampToValueAtTime(0.4, st + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, st + 0.35);
+    osc.connect(g); g.connect(mGain);
+    osc.start(st); osc.stop(st + 0.4);
+  });
+}
+
+function sndKTXChime(type) {
+  if (!AC) return;
+  const notes = type === 'depart'
+    ? [{ f: 523.25, t: 0 }, { f: 659.25, t: 0.44 }, { f: 783.99, t: 0.88 }]
+    : [{ f: 783.99, t: 0 }, { f: 659.25, t: 0.44 }, { f: 523.25, t: 0.88 }];
+
+  notes.forEach(({ f, t }) => {
+    const st = AC.currentTime + t;
+    // 기본음 + 배음 2개 = 실제 차임 음색
+    [f, f * 2.756, f * 5.404].forEach((freq, hi) => {
+      const osc = AC.createOscillator(); osc.type = 'sine'; osc.frequency.value = freq;
+      const vol = [0.32, 0.12, 0.05][hi];
+      const decay = [2.8, 1.8, 1.2][hi];
+      const g = AC.createGain();
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(vol, st + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.001, st + decay);
+      osc.connect(g);
+      const wG = AC.createGain(); wG.gain.value = 0.55; g.connect(wG); wG.connect(revConv);
+      const dG = AC.createGain(); dG.gain.value = 0.5; g.connect(dG); dG.connect(mGain);
+      osc.start(st); osc.stop(st + decay + 0.1);
+    });
+  });
+}
+
+// 클리어 팡파레 - 관현악 느낌
+function sndClearFanfare() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  // 주선율 (트라이앵글 근사)
+  const melody = [
+    { f: 523.25, t: 0,   dur: 0.25 },
+    { f: 659.25, t: 0.28,dur: 0.25 },
+    { f: 783.99, t: 0.56,dur: 0.25 },
+    { f: 1046.5, t: 0.84,dur: 0.6  },
+    { f: 880,    t: 1.5, dur: 0.25 },
+    { f: 987.77, t: 1.78,dur: 0.25 },
+    { f: 1046.5, t: 2.06,dur: 1.2  },
+  ];
+  melody.forEach(({ f, t, dur }) => {
+    [f, f * 2, f * 3].forEach((freq, hi) => {
+      const osc = AC.createOscillator(); osc.type = hi === 0 ? 'triangle' : 'sine';
+      osc.frequency.value = freq;
+      const vol = [0.28, 0.1, 0.04][hi];
+      const g = AC.createGain();
+      const st = now + t;
+      g.gain.setValueAtTime(0, st);
+      g.gain.linearRampToValueAtTime(vol, st + 0.025);
+      g.gain.setValueAtTime(vol, st + dur * 0.75);
+      g.gain.exponentialRampToValueAtTime(0.001, st + dur + 0.15);
+      osc.connect(g);
+      const wG = AC.createGain(); wG.gain.value = 0.6; g.connect(wG); wG.connect(revConv);
+      const dG = AC.createGain(); dG.gain.value = 0.55; g.connect(dG); dG.connect(mGain);
+      osc.start(st); osc.stop(st + dur + 0.2);
+    });
+  });
+
+  // 저음 베이스 (콘트라바스 근사)
+  const bass = [
+    { f: 130.81, t: 0,   dur: 0.8 },
+    { f: 164.81, t: 0.84,dur: 0.6 },
+    { f: 196,    t: 1.5, dur: 0.5 },
+    { f: 261.63, t: 2.06,dur: 1.2 },
+  ];
+  bass.forEach(({ f, t, dur }) => {
+    const osc = AC.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = f;
+    const lpf = AC.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 600;
+    const g = AC.createGain();
+    const st = now + t;
+    g.gain.setValueAtTime(0, st); g.gain.linearRampToValueAtTime(0.15, st + 0.04);
+    g.gain.setValueAtTime(0.15, st + dur * 0.7); g.gain.exponentialRampToValueAtTime(0.001, st + dur);
+    osc.connect(lpf); lpf.connect(g);
+    const dG = AC.createGain(); dG.gain.value = 0.6; g.connect(dG); dG.connect(mGain);
+    osc.start(st); osc.stop(st + dur + 0.1);
+  });
+}
+
+// 열차 주행 앰비언스 - 다중 레이어 실제 열차 룸블
+let _ambienceNodes = null;
+function startTrainAmbience() {
+  if (!AC) return;
+  if (_ambienceNodes) return; // 이미 재생 중이면 중복 시작 방지
+  const sr = AC.sampleRate;
+
+  // 레이어1: 저주파 엔진 룸블
+  const osc1 = AC.createOscillator(); osc1.type = 'sawtooth'; osc1.frequency.value = 38;
+  const lfo1 = AC.createOscillator(); lfo1.type = 'sine'; lfo1.frequency.value = 0.8;
+  const lfoG1 = AC.createGain(); lfoG1.gain.value = 3;
+  lfo1.connect(lfoG1); lfoG1.connect(osc1.frequency);
+  const lpf1 = AC.createBiquadFilter(); lpf1.type = 'lowpass'; lpf1.frequency.value = 80;
+  const g1 = AC.createGain(); g1.gain.value = 0.12;
+  osc1.connect(lpf1); lpf1.connect(g1); g1.connect(mGain);
+  osc1.start(); lfo1.start();
+
+  // 레이어2: 레일 노이즈 (2초 루프)
+  const railLen = sr * 2.0;
+  const railBuf = AC.createBuffer(2, railLen, sr);
+  for (let ch = 0; ch < 2; ch++) {
+    const d = railBuf.getChannelData(ch);
+    for (let i = 0; i < railLen; i++) {
+      const t = i / sr;
+      // 레일 이음매 (약 3.5Hz 반복)
+      const joint = Math.pow(Math.max(0, Math.sin(Math.PI * t * 3.5)), 8) * 0.35;
+      const rumble = (Math.random() * 2 - 1) * 0.04;
+      d[i] = rumble + joint + (ch === 0 ? 0.01 : -0.01);
+    }
+  }
+  const railSrc = AC.createBufferSource(); railSrc.buffer = railBuf; railSrc.loop = true;
+  const lpf2 = AC.createBiquadFilter(); lpf2.type = 'lowpass'; lpf2.frequency.value = 300;
+  const g2 = AC.createGain(); g2.gain.value = 0.15;
+  railSrc.connect(lpf2); lpf2.connect(g2); g2.connect(mGain);
+  railSrc.start();
+
+  // 레이어3: 중주파 공기 마찰
+  const windOsc = AC.createOscillator(); windOsc.type = 'sawtooth'; windOsc.frequency.value = 180;
+  const bpfW = AC.createBiquadFilter(); bpfW.type = 'bandpass'; bpfW.frequency.value = 600; bpfW.Q.value = 0.4;
+  const windLFO = AC.createOscillator(); windLFO.type = 'sine'; windLFO.frequency.value = 2.2;
+  const windLFOG = AC.createGain(); windLFOG.gain.value = 0.025;
+  windLFO.connect(windLFOG); windLFOG.connect(windOsc.frequency);
+  const gW = AC.createGain(); gW.gain.value = 0.045;
+  windOsc.connect(bpfW); bpfW.connect(gW); gW.connect(mGain);
+  windOsc.start(); windLFO.start();
+
+  _ambienceNodes = { osc1, lfo1, railSrc, windOsc, windLFO, gains: [g1, g2, gW] };
+}
+
+// 스테이지 클리어 시 엔진/레일 소리를 끔 - 컴퓨터 부하 및 청감 휴식
+function stopTrainAmbience() {
+  if (!_ambienceNodes) return;
+  const now = AC ? AC.currentTime : 0;
+  // 급격한 정지로 인한 클릭음 방지 - 짧게 페이드아웃 후 정지
+  _ambienceNodes.gains.forEach(g => {
+    g.gain.cancelScheduledValues(now);
+    g.gain.setValueAtTime(g.gain.value, now);
+    g.gain.linearRampToValueAtTime(0, now + 0.25);
+  });
+  const { osc1, lfo1, railSrc, windOsc, windLFO } = _ambienceNodes;
+  setTimeout(() => {
+    [osc1, lfo1, railSrc, windOsc, windLFO].forEach(n => { try { n.stop(); } catch(e) {} });
+  }, 260);
+  _ambienceNodes = null;
+}
+
+// 접근 경고음 (방향 3D)
+function sndWarn(dir, urgency) {
+  if (!AC) return;
+  const osc = AC.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.value = 260 + urgency * 520;
+  const osc2 = AC.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.value = (260 + urgency * 520) * 1.5;
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0.1 * urgency, AC.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + 0.14);
+  const g2 = AC.createGain(); g2.gain.value = 0.04 * urgency;
+  const lp = mkLitePanner(dir, urgency);
+  osc.connect(g); osc2.connect(g2);
+  g.connect(lp.input); g2.connect(lp.input); lp.output.connect(mGain);
+  osc.start(); osc2.start();
+  osc.stop(AC.currentTime + 0.14); osc2.stop(AC.currentTime + 0.14);
+  setTimeout(() => lp._cleanup(), 160);
+}
+
+// ══════════════════════════════════════════════════════
+//  📢 KTX TTS 안내
+// ══════════════════════════════════════════════════════
+function speak(text, rate = 0.88, pitch = 0.82) {
+  if (!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'ko-KR'; u.rate = rate; u.pitch = pitch; u.volume = 1.0;
+  const voices = speechSynthesis.getVoices();
+  const v = voices.find(v => v.lang.startsWith('ko'));
+  if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+
+const MENTS = {
+  depart: [
+    "안녕하십니까. KTX를 이용해 주셔서 감사합니다. 좀비 비상 경보가 발령되었습니다. 침착하게 대응하여 주십시오.",
+    "다음 역은 천안아산역입니다. 좀비 수가 증가하고 있습니다. 무기를 준비하여 주십시오.",
+    "다음 역은 오송역입니다. 열차 내 위험 수위가 높아지고 있습니다. 모든 승객 여러분, 안전에 유의하여 주시기 바랍니다.",
+    "다음 역은 대전역입니다. 절반 가까이 왔습니다. 계속해서 안전에 유의하여 주십시오.",
+    "다음 역은 김천구미역입니다. 좀비의 위협이 거세지고 있습니다. 무기를 재정비하여 주십시오.",
+    "다음 역은 동대구역입니다. 강력한 보스급 좀비가 출현하였습니다. 최선을 다해 주십시오.",
+    "다음 역은 울산역입니다. 부산이 가까워지고 있습니다. 끝까지 긴장을 놓지 마십시오.",
+    "다음 역은 구포역입니다. 이제 곧 종점입니다. 조금만 더 힘내 주십시오.",
+    "다음 역은 부산역입니다. 거의 다 왔습니다. 끝까지 포기하지 마십시오.",
+  ],
+  arrive: [
+    "광명역에 도착하였습니다. 잘 버텨 주셨습니다.",
+    "천안아산역에 도착하였습니다. 훌륭하십니다.",
+    "오송역에 도착하였습니다. 계속해서 잘 대응해 주십시오.",
+    "대전역에 도착하였습니다. 절반 이상 오셨습니다.",
+    "김천구미역에 도착하였습니다. 대단히 잘하고 계십니다.",
+    "동대구역에 도착하였습니다. 부산이 바로 눈앞입니다.",
+    "울산역에 도착하였습니다. 조금만 더 힘내 주십시오.",
+    "구포역에 도착하였습니다. 이제 마지막 구간입니다.",
+    "부산역에 도착하였습니다. 모든 좀비를 물리치고 안전하게 도착하셨습니다. 대단히 감사합니다.",
+  ],
+  boss: [
+    "경고! 보스 좀비가 접근하고 있습니다!",
+    "경고! 대형 좀비 출현! 강력한 무기를 사용하십시오!",
+    "경고! 보스 좀비 출현! 집중 사격을 요청합니다!",
+    "경고! 강력한 보스입니다! 로켓런처 사용을 권장합니다!",
+    "최종 경고! 마지막 보스 출현! 총력을 다해 주십시오!",
+  ],
+  gameover: "안타깝게도 좀비에게 희생되셨습니다. 포기하지 마시고 다시 도전하여 부산에 꼭 도착하시기 바랍니다.",
+  clear: "축하드립니다! 모든 좀비를 물리치고 부산역에 안전하게 도착하셨습니다! KTX를 이용해 주셔서 대단히 감사합니다. 안녕히 가십시오.",
+};
+
+// ══════════════════════════════════════════════════════
+//  🎮 게임 로직
+// ══════════════════════════════════════════════════════
+const STAGES = [
+  { from: '서울',     to: '광명역',      duration: 55000,  boss: '👹', bossHp: 8  },
+  { from: '광명',     to: '천안아산역',  duration: 60625,  boss: '🧟', bossHp: 9  },
+  { from: '천안아산', to: '오송역',      duration: 66250,  boss: '👺', bossHp: 12 },
+  { from: '오송',     to: '대전역',      duration: 71875,  boss: '🧟', bossHp: 14 },
+  { from: '대전',     to: '김천구미역',  duration: 77500,  boss: '👹', bossHp: 17 },
+  { from: '김천구미', to: '동대구역',    duration: 83125,  boss: '🦇', bossHp: 20 },
+  { from: '동대구',   to: '울산역',      duration: 88750,  boss: '👺', bossHp: 23 },
+  { from: '울산',     to: '구포역',      duration: 94375,  boss: '🦇', bossHp: 26 },
+  { from: '구포',     to: '부산역 🏁',   duration: 100000, boss: '💀', bossHp: 30 },
+];
+const WEAPONS = {
+  pistol:  { name: '🔫 피스톨',  ammo: 6,   reload: 800,   dmg: 1, rate: 250  },
+  shotgun: { name: '💥 샷건',    ammo: 3,   reload: 1800,  dmg: 5, rate: 1000 },
+  rocket:  { name: '🚀 로켓',    ammo: 1,   reload: 99999, dmg: 10,rate: 500, oneUse: true },
+  knife:   { name: '🔪 사시미칼',ammo: 999, reload: 0,     dmg: 2, rate: 150, close: true  },
+};
+const DIRS = [11, 12, 1, 9, 3];
+let S = {};
+let _gen = 0; // 재시작할 때마다 증가. 오래된 setTimeout 콜백을 무효화하는 데 사용.
+
+function initS() {
+  _gen++;
+  S = { stage: 0, hp: 5, weapon: 'pistol', ammo: 6, reloading: false,
+    lastShot: 0, zombies: [], boss: null, bossActive: false, rocketUsed: false,
+    progress: 0, paused: false, gameOver: false, stageClear: false,
+    zombieId: 0, spawnIv: null, progIv: null, gen: _gen,
+    reloadBreak: false, lastBreakStep: 0, lastEliteStep: -1,
+    // 하트 최대치 보너스 관련 상태
+    hpBonusLevel: 0,   // 지금까지 받은 보너스 횟수 (0=없음, 1=1회 받음→7개, 2=2회 받음→10개)
+    noDmgEarly: true,  // 1~3역 동안 하트가 한 번도 안 깎였는지
+    midDmgCount: 0 };  // 4~6역 구간 누적 하트 깎임 횟수 (1회까지는 봐줌)
+}
+
+// 스테이지(역) 진행에 따른 최대 하트 보너스 규칙:
+// - 4역 진입 시: 1~3역 동안 하트가 한 번도 안 깎였다면 보너스 1회 지급
+// - 7역 진입 시: 4~6역 구간(누적 깎임 1회는 봐줌)에서 조건 통과 시 보너스 1회 지급
+// - 보너스는 "몇 번째로 받는지"에 따라 7개 → 10개 순서로 적용 (스테이지 번호와 무관)
+//   즉 4역에서 못 받고 7역에서 처음 받으면 10개가 아니라 7개가 됨
+function evaluateHeartBonus(stageNum) {
+  if (stageNum === 4 && S.hpBonusLevel === 0 && S.noDmgEarly) {
+    S.hpBonusLevel = 1;
+  } else if (stageNum === 7 && S.hpBonusLevel < 2) {
+    if (S.midDmgCount <= 1) S.hpBonusLevel += 1; // 누적 1회까지는 봐줌
+  }
+}
+
+const HP_BY_BONUS_LEVEL = [5, 7, 10]; // 보너스 0회/1회/2회 시 최대 하트
+
+const BF = document.getElementById('battlefield');
+const heartsEl = document.getElementById('hearts-area');
+const ammoEl = document.getElementById('ammo-dots');
+const wLabel = document.getElementById('weapon-label');
+const sLabel = document.getElementById('stage-label');
+const pFill = document.getElementById('progress-fill');
+const pPct = document.getElementById('prog-pct');
+const pFrom = document.getElementById('prog-from');
+const pTo = document.getElementById('prog-to');
+const overlayEl = document.getElementById('overlay');
+const sMsgEl = document.getElementById('stage-msg');
+const appEl = document.getElementById('app');
+
+function startGame() {
+  initAudio();
+  startTrainAmbience();
+  initS();
+  renderHearts(); renderAmmo();
+  selectWeapon('pistol', true);
+  loadStage(0);
+  overlayEl.classList.remove('show');
+  startBeepSystem();
+}
+
+function loadStage(idx) {
+  S.stage = idx; S.progress = 0; S.bossActive = false; S.boss = null;
+  S.zombies = []; S.stageClear = false; S.rocketUsed = false;
+  S.lastBreakStep = 0; S.reloadBreak = false; S.lastEliteStep = -1;
+  evaluateHeartBonus(idx + 1); // 4역/7역 진입 시 무피격 조건 체크 후 보너스 반영
+  S.hp = getMaxHp(); renderHearts(); // 스테이지 시작마다 해당 구간 최대치로 하트 풀 회복
+  _gen++; S.gen = _gen; // 이전 스테이지에 남아있던 좀비의 animZ 루프를 확실히 무효화
+  document.getElementById('rocket-btn').classList.remove('disabled');
+  clearIvs(); clearZombies();
+  const st = STAGES[idx];
+  sLabel.textContent = `${idx + 1}스테이지: ${st.from} → ${st.to}`;
+  pFrom.textContent = st.from; pTo.textContent = st.to;
+  pFill.style.width = '0%'; pPct.textContent = '0%';
+  sndKTXChime('depart');
+  showMsg(`🚄 ${idx + 1}스테이지!`, `${st.from} → ${st.to}`, 2600, () => { startSpawn(); startProg(); });
+}
+
+function clearIvs() { clearInterval(S.spawnIv); clearInterval(S.progIv); }
+function clearZombies() {
+  // 메쉬만 지우고 z.dead를 안 세우면, 이미 돌고 있는 animZ()의 requestAnimationFrame
+  // 루프가 안 멈춰서 화면엔 안 보이는 좀비가 계속 다가와 결국 zAttack()으로 하트를
+  // 깎아먹는 버그가 있었다 (스테이지 클리어로 정지 화면이 떠 있는데도 물어뜯기는 문제).
+  // 좀비 객체 자체에 dead를 세워 루프가 스스로 멈추게 한다.
+  S.zombies.forEach(z => { z.dead = true; });
+  S.zombies.length = 0;
+  clearAllDirArrows();
+  if (S.boss) { S.boss.dead = true; S.boss = null; }
+  if (zombieGroup) {
+    while (zombieGroup.children.length) {
+      const child = zombieGroup.children[0];
+      zombieGroup.remove(child);
+      disposeMesh(child);
+    }
+  }
+  clearAllParticles();
+}
+
+let _msgTimer = null;
+function showMsg(title, body, ms, cb, doPause = true) {
+  if (_msgTimer) { clearTimeout(_msgTimer); _msgTimer = null; }
+  if (doPause) S.paused = true;
+  document.getElementById('stage-msg-title').textContent = title;
+  document.getElementById('stage-msg-body').textContent = body;
+  sMsgEl.classList.add('show');
+  _msgTimer = setTimeout(() => { sMsgEl.classList.remove('show'); if (doPause) S.paused = false; _msgTimer = null; if (cb) cb(); }, ms);
+}
+
+function startProg() {
+  if (S.progIv) clearInterval(S.progIv);
+  const dur = STAGES[S.stage].duration;
+  const breakStepPct = S.stage >= 6 ? 5 : 10;
+  S.progIv = setInterval(() => {
+    if (S.paused || S.gameOver || S.reloadBreak) return;
+    S.progress += 200 / dur;
+    if (S.progress >= 1) S.progress = 1;
+    const pct = Math.floor(S.progress * 100);
+    pFill.style.width = pct + '%'; pPct.textContent = pct + '%';
+
+    // 진행도 breakStepPct% 마다 3초 재장전 휴식 (보스전 구간 80%+ 는 제외)
+    const step = Math.floor(pct / breakStepPct);
+    if (step > S.lastBreakStep && pct < 80 && pct > 0) {
+      S.lastBreakStep = step;
+      S.reloadBreak = true;
+      showMsg('🔧 재정비 시간!', '3초간 새 좀비는 안 나옵니다 - 장전하세요!', 3000, () => { S.reloadBreak = false; }, false);
+      sndReloadBreakChime();
+    }
+
+    if (S.progress >= 0.8 && !S.bossActive) spawnBoss();
+    if (S.progress >= 1 && !S.boss) { clearInterval(S.progIv); stageClear(); }
+  }, 200);
+}
+
+function startSpawn() {
+  if (S.spawnIv) clearInterval(S.spawnIv);
+  const base0 = 1800 - S.stage * 75;
+  // 스폰 간격 배율: 헤비/엘리트 좀비가 섞이는 4스테이지부터 체감 난이도가
+  // 급증하지 않도록, 처치 시간(TTK)까지 고려해 곡선을 완만하게 조정함.
+  // 1~3: 그대로(1.0) / 4~6: 크게 완화(1.7→1.5) / 7~9: 헤비+엘리트 혼합 감안해 중간 수준 완화(1.55→1.45)
+  const mult = [1.0, 1.0, 1.0, 1.7, 1.6, 1.5, 1.55, 1.5, 1.45][S.stage];
+  const base = base0 * mult;
+  S.spawnIv = setInterval(() => { if (!S.paused && !S.gameOver && !S.reloadBreak) spawnZombie(); }, base);
+}
+
+function spawnZombie(heavy = false) {
+  // 7~9스테이지 보스전: 엘리트 좀비만 최대 2마리 유지, 하나 죽으면 바로 다음 1마리 스폰
+  if (S.bossActive && S.stage >= 6) {
+    if (S.zombies.filter(z => !z.dead).length >= 2) return;
+    spawnEliteZombie();
+    return;
+  }
+
+  const dir = DIRS[Math.floor(Math.random() * DIRS.length)];
+  const id = ++S.zombieId;
+
+  let isElite = false;
+  if (!heavy && S.stage >= 6) {
+    const pct = Math.floor(S.progress * 100);
+    const eliteStep = Math.floor(pct / 5);
+    if (eliteStep !== S.lastEliteStep && Math.random() < 0.4) {
+      S.lastEliteStep = eliteStep;
+      isElite = true;
+    }
+  }
+
+  const isH = heavy || isElite || S.stage >= 3 || Math.random() < 0.2 + S.stage * 0.025;
+  const hp = isElite ? (7 + Math.floor(Math.random() * 3)) : (isH ? (4 + Math.floor(Math.random() * 3)) : (1 + Math.floor(Math.random() * 3)));
+  const spd = 6000 - S.stage * 250 + Math.random() * 1000;
+  const z = { id, dir, hp, maxHp: hp, heavy: isH || isElite, elite: isElite, speed: spd, startTime: Date.now(), mesh: null, dead: false, gen: S.gen };
+  z.mesh = createZombieVisual(z, false);
+  S.zombies.push(z);
+  animZ(z); sndGroan(dir, 0.12);
+  announceZombieDir(dir);
+  addDirArrow(id, dir);
+}
+
+// 방향별 화살표 스택: 좀비가 스폰될 때마다 해당 시 방향 컨테이너에 화살표를
+// 하나 추가한다. 같은 방향에 화살표가 여러 개 쌓여 있으면 그 방향에 좀비가
+// 그만큼 여러 마리 있다는 뜻이다. 좀비 id를 화살표 엘리먼트에 매핑해서,
+// 죽거나(killZ) 공격에 성공하거나(zAttack) 스테이지가 정리될 때(clearZombies)
+// 정확히 그 화살표만 지운다.
+const _dirArrowEls = new Map(); // zombieId -> arrow element
+function addDirArrow(id, dir, isBoss = false) {
+  const stack = document.querySelector(`.dir-arrow-stack[data-dir="${dir}"]`);
+  if (!stack) return;
+  const arrow = document.createElement('div');
+  arrow.className = 'dir-arrow' + (isBoss ? ' boss' : '');
+  stack.appendChild(arrow);
+  _dirArrowEls.set(id, arrow);
+}
+function removeDirArrow(id) {
+  const arrow = _dirArrowEls.get(id);
+  if (arrow) { arrow.remove(); _dirArrowEls.delete(id); }
+}
+function clearAllDirArrows() {
+  _dirArrowEls.forEach(arrow => arrow.remove());
+  _dirArrowEls.clear();
+}
+
+let _ttsTimer = null;
+function announceZombieDir(dir) {
+  if (!window.speechSynthesis) return;
+  const lbl = { 11:'11시!', 12:'12시!', 1:'1시!', 9:'9시!', 3:'3시!' }[dir];
+  if (!lbl) return;
+  // 스폰 로직과 완전 분리: setTimeout으로 비동기 처리
+  // 연속 스폰 시 마지막 방향만 발음 (디바운스 80ms)
+  if (_ttsTimer) clearTimeout(_ttsTimer);
+  _ttsTimer = setTimeout(() => {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(lbl);
+    u.lang = 'ko-KR'; u.rate = 1.4; u.pitch = 1.1; u.volume = 0.95;
+    speechSynthesis.speak(u);
+    _ttsTimer = null;
+  }, 80);
+}
+
+function animZ(z) {
+  if (z.dead || z.gen !== S.gen) return;
+
+  // 정지 상태(스테이지 클리어 등)에서는 시간 흐름을 보정해 좀비를 제자리에 멈춰둠.
+  // 재정비 휴식(reloadBreak) 중에는 좀비가 멈추지 않고 계속 움직인다. (새 좀비 스폰만 막힘)
+  if (S.paused) {
+    z.startTime += 16; // 다음 프레임에서도 elapsed가 늘지 않도록 보정
+    requestAnimationFrame(() => animZ(z));
+    return;
+  }
+
+  const elapsed = Date.now() - z.startTime;
+  const pct = Math.min(elapsed / z.speed, 1);
+  updateZombieVisual(z, pct);
+  const urg = Math.pow(pct, 2);
+
+  // 신음/경고음: 프레임마다 확률 판정하면 좀비가 많을 때 호출이 폭증하므로,
+  // 좀비별 쿨다운(최소 간격)을 두고 그 안에서만 확률 판정한다.
+  const groanCooldown = 900 - urg * 300; // 위급할수록 더 자주 (최소 600ms)
+  if (pct > 0.28 && elapsed - (z.lastGroan || -99999) >= groanCooldown) {
+    z.lastGroan = elapsed;
+    if (Math.random() < 0.35 + urg * 0.35) {
+      sndGroan(z.dir, urg * 0.8 + 0.1); sndWarn(z.dir, urg);
+    }
+  }
+
+  // 접근 비명(죽을 때 나는 소리): 1.5초 간격, 다가올수록 커지고 또렷해짐
+  if (elapsed - (z.lastScream || 0) >= 1500) {
+    z.lastScream = elapsed;
+    sndApproachScream(z.dir, Math.max(pct, 0.05));
+  }
+
+  // 발소리: 접근할수록 걸음 간격이 짧아짐 (명확한 방향/거리 인지용)
+  const isBoss = z.id === 'boss';
+  const stepInterval = isBoss ? (900 - pct * 500) : (620 - pct * 380);
+  if (elapsed - (z.lastStep || -99999) >= stepInterval) {
+    z.lastStep = elapsed;
+    sndFootstep(z.dir, Math.max(pct, 0.06), isBoss);
+  }
+
+  if (pct < 1) requestAnimationFrame(() => animZ(z));
+  else if (!z.dead && !S.gameOver) zAttack(z);
+}
+
+function zAttack(z) {
+  if (z.dead || S.gameOver || S.paused) return;
+  z.dead = true; removeZombieVisual(z.mesh);
+  removeDirArrow(z.id);
+  if (z.id === 'boss') {
+    S.boss = null;
+    S.hp = 0; renderHearts();
+    appEl.classList.remove('shake'); void appEl.offsetWidth; appEl.classList.add('shake');
+    setTimeout(() => appEl.classList.remove('shake'), 280);
+    showHitVignette();
+    gameOver();
+  } else {
+    sndBite(); takeDmg();
+    S.zombies = S.zombies.filter(x => x.id !== z.id);
+  }
+}
+
+function spawnBoss() {
+  S.bossActive = true;
+  const st = STAGES[S.stage];
+  const dir = DIRS[~~(Math.random() * DIRS.length)];
+  const dirLbl = { 11: '11시', 12: '12시', 1: '1시', 9: '9시', 3: '3시' }[dir];
+
+  // 3초 전 예고 경보
+  sndBossAlarm();
+  showMsg('🚨 보스 접근 경보!', `대형 좀비가 다가옵니다!`, 1800, null, false);
+  if (_ttsTimer) { clearTimeout(_ttsTimer); _ttsTimer = null; }
+  speak(`경고! ${dirLbl} 방향! 보스 접근!`, 0.95, 0.8);
+
+  // 7~9스테이지: 보스전 시작과 동시에 남은 일반 좀비를 정리하고 엘리트 좀비 2마리로 채운다
+  if (S.stage >= 6) {
+    S.zombies.forEach(z => { z.dead = true; removeZombieVisual(z.mesh); removeDirArrow(z.id); });
+    S.zombies = [];
+    spawnEliteZombie();
+    spawnEliteZombie();
+  }
+
+  const myGen = S.gen;
+  setTimeout(() => {
+    if (S.gen !== myGen || S.gameOver || S.stageClear) return;
+    const bossZ = { id: 'boss', dir, hp: st.bossHp, maxHp: st.bossHp, speed: 12000 + S.stage * 500, startTime: Date.now(), mesh: null, dead: false, gen: S.gen, heavy: true };
+    bossZ.mesh = createZombieVisual(bossZ, true);
+    S.boss = bossZ;
+    sndBossAlarm();
+    if (_ttsTimer) { clearTimeout(_ttsTimer); _ttsTimer = null; }
+    speak(`${dirLbl} 보스!`, 0.95, 0.8);
+    animZ(S.boss);
+    addDirArrow('boss', dir, true);
+  }, 3000);
+}
+
+function shoot(dir) {
+  if (S.paused || S.gameOver) return;
+  if (!AC) initAudio();
+  const now = Date.now(), w = WEAPONS[S.weapon];
+  if (now - S.lastShot < w.rate) return;
+  if (S.ammo <= 0) { needReload(); return; }
+  if (S.reloading) return;
+  S.lastShot = now; S.ammo--; renderAmmo();
+
+  if (S.weapon === 'pistol') { sndPistol(dir); spawnSmokePuff(); }
+  else if (S.weapon === 'shotgun') { sndShotgun(dir); spawnSmokePuff(); }
+  else if (S.weapon === 'rocket') sndRocket();
+  else if (S.weapon === 'knife') sndKnife(dir);
+
+  if (S.weapon === 'knife') {
+    S.zombies.forEach(z => { const p = (Date.now() - z.startTime) / z.speed; if (z.dir === dir && p > 0.6 && !z.dead) dmg(z, w.dmg); });
+    if (S.boss) { const p = (Date.now() - S.boss.startTime) / S.boss.speed; if (S.boss.dir === dir && p > 0.6) dmg(S.boss, w.dmg); }
+  } else if (S.weapon === 'rocket') {
+    [...S.zombies].forEach(z => dmg(z, w.dmg));
+    if (S.boss) dmg(S.boss, w.dmg);
+    S.rocketUsed = true;
+    document.getElementById('rocket-btn').classList.add('disabled');
+    S.ammo = 0; renderAmmo();
+  } else {
+    S.zombies.forEach(z => { if (z.dir === dir && !z.dead) dmg(z, w.dmg); });
+    if (S.boss && S.boss.dir === dir) dmg(S.boss, w.dmg);
+  }
+
+  // 3D 총구 섬광 파티클
+  if (S.weapon !== 'knife') spawnMuzzleBurst(dir);
+
+  crosshairEl.classList.remove('shoot'); void crosshairEl.offsetWidth; crosshairEl.classList.add('shoot');
+}
+
+function dmg(z, d) {
+  if (z.dead) return; z.hp -= d;
+  flashHitMesh(z.mesh);
+  sndZombieHit(z.dir || 12); // 비명: 항상 재생
+  if (z.hp <= 0) killZ(z); // 죽으면 삐리링(sndKillDing)만 남고 삑은 없음
+  else sndHitBeep(); // 안 죽었을 때만 명중 삑
+}
+
+function killZ(z) {
+  z.dead = true; sndZombieDie(z.dir || 12); sndKillDing();
+  killZombieVisual(z.mesh);
+  removeDirArrow(z.id);
+  if (z.id === 'boss') {
+    S.boss = null;
+    // 보스를 잡아도 진행바가 100%를 채울 때까지는 클리어하지 않는다.
+    // (기존에는 progress>=0.95면 바로 클리어시켜, 진행도가 100% 미만인 채로
+    //  스테이지가 끝나버리는 버그가 있었음)
+    if (S.progress >= 1) { clearInterval(S.progIv); stageClear(); }
+  }
+  else {
+    S.zombies = S.zombies.filter(x => x.id !== z.id);
+    // 7~9스테이지 보스전: 엘리트 좀비 하나가 죽으면 바로 다음 1마리를 순차 스폰 (최대 2마리 유지)
+    if (S.bossActive && S.stage >= 6 && !S.paused && !S.gameOver) {
+      spawnEliteZombie();
+    }
+  }
+}
+
+function spawnEliteZombie() {
+  const dir = DIRS[Math.floor(Math.random() * DIRS.length)];
+  const id = ++S.zombieId;
+  const hp = 7 + Math.floor(Math.random() * 3);
+  const spd = 6000 - S.stage * 250 + Math.random() * 1000;
+  const z = { id, dir, hp, maxHp: hp, heavy: true, elite: true, speed: spd, startTime: Date.now(), mesh: null, dead: false, gen: S.gen };
+  z.mesh = createZombieVisual(z, false);
+  S.zombies.push(z);
+  animZ(z); sndGroan(dir, 0.12);
+  announceZombieDir(dir);
+  addDirArrow(id, dir);
+}
+
+// 띠링! 킬 효과음 - 맑고 경쾌한 상승 음계
+// 명중 확인 "삑" - 단발음, 사망 시 삐리링(sndKillDing)과 구분됨
+function sndHitBeep() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const osc = AC.createOscillator();
+  osc.type = 'square';
+  osc.frequency.value = 1046.5; // C6
+  const g = AC.createGain();
+  g.gain.setValueAtTime(0, now);
+  g.gain.linearRampToValueAtTime(0.5, now + 0.006);
+  g.gain.setValueAtTime(0.5, now + 0.055);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  osc.connect(g); g.connect(mGain);
+  osc.start(now); osc.stop(now + 0.1);
+}
+
+function sndKillDing() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  // 3음 빠른 상승 아르페지오 (C5 → E5 → G5)
+  const notes = [523.25, 659.25, 783.99];
+  notes.forEach((freq, i) => {
+    const osc = AC.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const g = AC.createGain();
+    const t = now + i * 0.07;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.28, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    // 고조파 오버톤 (밝고 맑은 음색)
+    const osc2 = AC.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.value = freq * 2;
+    const g2 = AC.createGain(); g2.gain.value = 0.12;
+    osc2.connect(g2); g2.connect(g);
+    osc.connect(g);
+    g.connect(mGain);
+    osc.start(t); osc.stop(t + 0.25);
+    osc2.start(t); osc2.stop(t + 0.25);
+  });
+}
+
+  
+
+function reload() {
+  if (S.reloading || S.gameOver || S.paused || S.weapon === 'knife') return;
+  const w = WEAPONS[S.weapon]; if (w.reload === 0) return;
+  S.reloading = true;
+  const btn = document.getElementById('reload-btn');
+  btn.textContent = '⏳ 장전중...'; sndReload();
+  setTimeout(() => { S.ammo = w.ammo; S.reloading = false; btn.innerHTML = '🔄 장전'; renderAmmo(); }, w.reload);
+}
+
+function needReload() {
+  const btn = document.getElementById('reload-btn');
+  btn.style.borderColor = 'red'; btn.style.color = 'red';
+  setTimeout(() => { btn.style.borderColor = ''; btn.style.color = ''; }, 400);
+  sndEmptyClick();
+}
+
+// 빈 탄창 "딸깍" (장전 필요 알림)
+function sndEmptyClick() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const buf = AC.createBuffer(1, AC.sampleRate * 0.04, AC.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) { const t = i / AC.sampleRate; d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 110) * 0.5; }
+  const src = AC.createBufferSource(); src.buffer = buf;
+  const hpf = AC.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 2000;
+  const g = AC.createGain(); g.gain.value = 0.4;
+  src.connect(hpf); hpf.connect(g); g.connect(mGain);
+  src.start(now);
+}
+
+// 무기 교체음 - "찰칵" (금속 클릭, 총기류용)
+function sndWeaponClick() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const sr = AC.sampleRate;
+  const len = sr * 0.05;
+  const buf = AC.createBuffer(1, len, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    const t = i / sr;
+    d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 90) * 0.7
+         + Math.sin(2 * Math.PI * 2600 * t) * Math.exp(-t * 140) * 0.4;
+  }
+  const src = AC.createBufferSource(); src.buffer = buf;
+  const hpf = AC.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 1200;
+  const g = AC.createGain(); g.gain.value = 0.55;
+  src.connect(hpf); hpf.connect(g); g.connect(mGain);
+  src.start(now);
+}
+
+// 무기 교체음 - "시이익" (칼날을 칼집/천에서 빼는 마찰음, 나이프용)
+function sndWeaponSwish() {
+  if (!AC) return;
+  const now = AC.currentTime;
+  const sr = AC.sampleRate;
+  const dur = 0.22;
+  const len = sr * dur;
+  const buf = AC.createBuffer(1, len, sr);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    const t = i / sr;
+    const n = t / dur;
+    d[i] = (Math.random() * 2 - 1) * Math.exp(-Math.abs(n - 0.4) * 3) * 0.5;
+  }
+  const src = AC.createBufferSource(); src.buffer = buf;
+  const bpf = AC.createBiquadFilter(); bpf.type = 'bandpass';
+  bpf.frequency.setValueAtTime(2200, now);
+  bpf.frequency.linearRampToValueAtTime(4500, now + dur);
+  bpf.Q.value = 1.2;
+  const g = AC.createGain(); g.gain.value = 0.5;
+  src.connect(bpf); bpf.connect(g); g.connect(mGain);
+  src.start(now);
+}
+
+function selectWeapon(w, silent = false) {
+  if (S.gameOver) return; if (w === 'rocket' && S.rocketUsed) return;
+  S.weapon = w; S.ammo = WEAPONS[w].ammo; S.reloading = false;
+  document.querySelectorAll('.weapon-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector(`[data-weapon="${w}"]`).classList.add('active');
+  wLabel.textContent = WEAPONS[w].name; renderAmmo();
+  if (!silent && AC) { if (w === 'knife') sndWeaponSwish(); else sndWeaponClick(); }
+}
+
+// 최대 하트 수는 기본 5개이며, 1~3역 무피격 / 4~6역 거의 무피격(1회 봐줌) 조건을
+// 만족할 때마다 보너스가 붙어 7개 → 10개 순서로 늘어남 (evaluateHeartBonus 참고)
+function getMaxHp() {
+  return HP_BY_BONUS_LEVEL[S.hpBonusLevel];
+}
+
+
+function renderHearts() {
+  const maxHp = getMaxHp();
+  heartsEl.innerHTML = '';
+  for (let i = 0; i < maxHp; i++) {
+    const h = document.createElement('span');
+    h.className = 'heart' + (i >= S.hp ? ' lost' : ''); h.textContent = '❤️';
+    heartsEl.appendChild(h);
+  }
+}
+
+function renderAmmo() {
+  ammoEl.innerHTML = '';
+  const w = WEAPONS[S.weapon], total = w.ammo === 999 ? 6 : w.ammo;
+  const cur = S.ammo === 999 ? 6 : Math.min(S.ammo, total);
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('div');
+    d.className = 'ammo-dot' + (i >= cur ? ' empty' : ''); ammoEl.appendChild(d);
+  }
+}
+
+function takeDmg() {
+  if (S.gameOver) return; S.hp--; renderHearts();
+  const stageNum = S.stage + 1;
+  if (stageNum <= 3) S.noDmgEarly = false;      // 1~3역: 한 번이라도 깎이면 4역 보너스 무산
+  else if (stageNum <= 6) S.midDmgCount++;      // 4~6역: 누적 깎임 횟수 기록 (1회까지 봐줌)
+  appEl.classList.remove('shake'); void appEl.offsetWidth; appEl.classList.add('shake');
+  setTimeout(() => appEl.classList.remove('shake'), 280);
+  const hs = heartsEl.querySelectorAll('.heart');
+  if (hs[S.hp]) { hs[S.hp].classList.add('hit'); setTimeout(() => hs[S.hp] && hs[S.hp].classList.remove('hit'), 300); }
+  showHitVignette();
+  if (S.hp > 0) announceHearts();
+  if (S.hp <= 0) gameOver();
+}
+
+function stageClear() {
+  if (S.stageClear || S.gameOver) return;
+  S.stageClear = true; S.paused = true; clearIvs(); clearZombies(); stopBeepSystem();
+  // loadStage()가 스테이지 전환 시 하던 것과 동일하게 gen을 올려, 이미 스폰되어
+  // animZ() 재귀 루프를 돌고 있던 좀비들을 확실히 무효화한다. (이걸 안 했던 게
+  // "클리어 후에는 좀비가 안 사라지고 계속 다가오는" 문제의 근본 원인이었음)
+  _gen++; S.gen = _gen;
+  stopTrainAmbience(); // 역에 도착했으니 엔진 소리도 정지 - 컴퓨터도 쉬고 귀도 쉼
+  hitVig.classList.remove('show'); hitVig.classList.add('hide');
+  crosshairEl.classList.remove('shoot');
+  sndKTXChime('arrive');
+  const next = S.stage + 1;
+  const isFinal = next >= STAGES.length;
+  const st = STAGES[S.stage];
+  const restartBtn = document.getElementById('restart-btn');
+  const myGen = S.gen;
+
+  setTimeout(() => {
+    if (S.gen !== myGen) return;
+    if (isFinal) sndClearFanfare();
+    overlayEl.classList.add('show');
+    document.getElementById('overlay-emoji').textContent = isFinal ? '🎉' : '🚉';
+    document.getElementById('overlay-title').className = 'clear';
+    document.getElementById('overlay-title').textContent = isFinal ? '부산 도착!' : '축하합니다!';
+    document.getElementById('overlay-body').innerHTML = isFinal
+      ? `좀비를 모두 물리치고\n부산역에 안전하게 도착했습니다!\n\n잔여 하트: ${'❤️'.repeat(S.hp)}`
+      : `${st.to.replace(' 🏁','')}에 도착했습니다!\n\n잔여 하트: ${'❤️'.repeat(S.hp)}`;
+    restartBtn.textContent = isFinal ? '다시 시작' : '다음 역 출발';
+    restartBtn.onclick = isFinal ? restartGame : () => proceedToNextStage(next);
+  }, 1600);
+}
+
+// 역 도착 화면에서 "다음 역 출발" 버튼을 눌렀을 때 호출
+function proceedToNextStage(next) {
+  overlayEl.classList.remove('show');
+  S.paused = false;
+  startTrainAmbience(); // 다시 출발하니 엔진 소리 재개
+  loadStage(next);
+  startBeepSystem();
+  // 버튼을 원래 동작(재시작)으로 복구 - 다음 도착 시 stageClear가 다시 설정함
+  const restartBtn = document.getElementById('restart-btn');
+  restartBtn.textContent = '다시 시작';
+  restartBtn.onclick = restartGame;
+}
+
+function gameOver() {
+  S.gameOver = true; clearIvs(); stopBeepSystem(); sndBite();
+  stopTrainAmbience();
+  const myGen = S.gen;
+  setTimeout(() => { if (S.gen === myGen) speak(MENTS.gameover); }, 700);
+  const st = STAGES[S.stage];
+  setTimeout(() => {
+    if (S.gen !== myGen) return;
+    overlayEl.classList.add('show');
+    document.getElementById('overlay-emoji').textContent = '💀';
+    document.getElementById('overlay-title').className = 'dead';
+    document.getElementById('overlay-title').textContent = '게임 오버';
+    document.getElementById('overlay-body').innerHTML = `${S.stage + 1}스테이지 (${st.from} → ${st.to})에서\n좀비에게 희생되었습니다...\n\n다시 도전하세요!`;
+  }, 300);
+}
+
+let _restarting = false;
+function restartGame() {
+  if (_restarting) return;
+  _restarting = true;
+  clearIvs(); clearZombies(); stopBeepSystem();
+  if (_msgTimer) { clearTimeout(_msgTimer); _msgTimer = null; }
+  if (_ttsTimer) { clearTimeout(_ttsTimer); _ttsTimer = null; }
+  sMsgEl.classList.remove('show');
+  if (window.speechSynthesis) speechSynthesis.cancel();
+  startGame();
+  setTimeout(() => { _restarting = false; }, 500);
+}
+
+let _overlayInputLocked = false;
+document.addEventListener('keydown', e => {
+  // Alt+Enter: 타이틀 화면에서 게임 시작
+  const ts = document.getElementById('title-screen');
+  if (ts && ts.style.display !== 'none') {
+    if (e.altKey && e.key === 'Enter') { e.preventDefault(); beginGame(); }
+    return;
+  }
+  if (S.paused || S.gameOver) {
+    // Enter(또는 Alt+Enter)는 현재 오버레이에 떠 있는 버튼의 동작을 그대로 실행한다.
+    //
+    // 근본 원인 (수정 완료): 오버레이가 뜬 후 Enter를 눌러 "다음 역 출발"이
+    // 실행되면(proceedToNextStage), 그 호출 안에서 오버레이를 곧바로 닫고
+    // restartBtn.onclick을 restartGame으로 즉시 복구한다. 그런데 키보드의
+    // auto-repeat(키를 길게 누르고 있으면 OS가 keydown을 연속으로 여러 번
+    // 발생시키는 동작) 때문에, 같은 Enter 입력 중 두 번째 keydown이 첫 번째
+    // 처리 직후 곧바로 들어올 수 있었다. 이 두 번째 이벤트 시점엔 이미
+    // onclick이 restartGame으로 바뀌어 있어서, 사람은 Enter를 한 번(또는
+    // 살짝 길게) 눌렀을 뿐인데 실제로는 "다음 역 출발" 다음에 "다시 시작"이
+    // 연달아 실행되어 스테이지 1로 돌아가 버렸다. ("운이 나쁘면" 재현되는
+    // 이유: auto-repeat 간격이 사람마다/키 누른 길이마다 달라 항상 재현되지
+    // 않았던 것.) 같은 이유로 오버레이가 뜨기 전(연출 대기 중, paused=true
+    // 이지만 오버레이 미표시) 구간에 눌린 Enter도 무시해야 한다 — 이때는
+    // onclick이 아직 이전 상태 그대로라 실행하면 안 되는 동작이 실행될 수
+    // 있기 때문이다.
+    // 해결: 오버레이 버튼을 한 번 실행하면 아주 짧은 시간 동안 추가 Enter
+    // 입력을 잠가서, 같은 키 입력의 반복/연타가 두 번째 동작으로 이어지지
+    // 않도록 한다.
+    if (e.key === 'Enter' && !e.repeat) {
+      const restartBtn = document.getElementById('restart-btn');
+      if (!_overlayInputLocked && restartBtn && overlayEl.classList.contains('show') && typeof restartBtn.onclick === 'function') {
+        _overlayInputLocked = true;
+        restartBtn.onclick();
+        setTimeout(() => { _overlayInputLocked = false; }, 700);
+      }
+    }
+    return;
+  }
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); announceWeapon(); return; }
+  switch (e.key.toLowerCase()) {
+    case 'a': shoot(11); bp('btn-11'); break;
+    case 's': shoot(12); bp('btn-12'); break;
+    case 'd': shoot(1);  bp('btn-1');  break;
+    case 'z': shoot(9);  bp('btn-9');  break;
+    case 'c': shoot(3);  bp('btn-3');  break;
+    case 'x': reload(); break;
+    case 'q': selectWeapon('pistol');  break;
+    case 'w': selectWeapon('shotgun'); break;
+    case 'e': selectWeapon('rocket');  break;
+    case 'r': selectWeapon('knife');   break;
+    case 'v': announceHearts(); break;
+    case 'f': announceAmmo(); break;
+  }
+});
+
+function announceHearts() {
+  speak(`하트 ${S.hp}개`, 1.0, 0.95);
+}
+
+function announceAmmo() {
+  // 사시미칼은 탄약 무제한(근접 무기)이라 탄약 확인 자체가 의미 없음 - 안내하지 않음
+  if (S.weapon === 'knife') return;
+  if (S.reloading) { speak('장전 중', 1.0, 0.95); return; }
+  speak(`탄약 ${S.ammo}개`, 1.0, 0.95);
+}
+
+function announceWeapon() {
+  const name = WEAPONS[S.weapon].name.replace(/^\S+\s*/, ''); // 이모지 제거
+  speak(`현재 무기 ${name}`, 1.0, 0.95);
+}
+
+function bp(id) { const b = document.getElementById(id); if (!b) return; b.classList.add('pressed'); setTimeout(() => b.classList.remove('pressed'), 150); }
+
+if (window.speechSynthesis) { speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices(); }
+
+let _beginning = false;
+function beginGame() {
+  if (_beginning) return;
+  _beginning = true;
+  const ts = document.getElementById('title-screen');
+  if (ts) ts.style.display = 'none';
+  appEl.classList.add('game-active');
+  // #app이 display:none이었던 동안엔 battlefield 크기가 0이라 캔버스가 제대로
+  // 초기화되지 않는다. 보이게 된 직후 명시적으로 다시 사이즈를 맞춘다.
+  resizeThree();
+  startGame();
+  setTimeout(() => { _beginning = false; }, 500);
+}
+
+function toggleHelp() {
+  const panel = document.getElementById('help-panel');
+  const btn = document.getElementById('help-toggle-btn');
+  const open = panel.hidden;
+  panel.hidden = !open;
+  btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
+  btn.textContent = open ? '📖 도움말 접기 ▴' : '📖 도움말 보기 ▾';
+}
+// 자동 시작 제거 - 타이틀 화면에서 버튼/Alt+Enter로 시작
+</script>
+</body>
+</html>
